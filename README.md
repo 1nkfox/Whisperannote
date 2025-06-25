@@ -1,6 +1,5 @@
-<<<<<<< HEAD
 # whisper-pyannote-gui
-=======
+
 # Whisper-PyAnnote GUI
 Простое GUI-приложение на PyQt5 для транскрибации аудио/видео с помощью **OpenAI Whisper** и диаризации речевых сегментов через **pyannote.audio**.  
 На выходе создаются четыре файла на основе исходного имени ролика:
@@ -37,6 +36,7 @@ export HUGGINGFACE_HUB_TOKEN="<ваш-hf-token>"
 ```
 
 Также для работы необходим токен для pyannote. Авторизуйтесь в Hugginface
+
 https://huggingface.co/pyannote/speaker-diarization-3.1
 https://huggingface.co/pyannote/segmentation-3.0
 
