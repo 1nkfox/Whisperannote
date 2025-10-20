@@ -62,6 +62,7 @@ class TranscribeWorker(QThread):
                 srt.write(f"{seg['speaker']}: {seg['text']}\n\n")
 
     def run(self):
+        wav_path = None
         try:
             os.environ["SPEECHBRAIN_LOCAL_STRATEGY"] = "COPY"
             os.environ["HUGGINGFACE_HUB_TOKEN"] = HF_TOKEN
@@ -89,12 +90,13 @@ class TranscribeWorker(QThread):
 
             base = os.path.join(self.output_dir, name)
             json_path = base + ".json"
-            txt_path  = base + ".txt"
-            srt_path  = base + ".srt"
-            md_path   = base + ".md"
+            txt_path = base + ".txt"
+            srt_path = base + ".srt"
+            md_path = base + ".md"
 
             for p in [json_path, txt_path, srt_path, md_path]:
-                if os.path.exists(p): os.remove(p)
+                if os.path.exists(p):
+                    os.remove(p)
 
             with open(json_path, "w", encoding="utf-8") as jf:
                 jf.write("[\n")
@@ -134,7 +136,11 @@ class TranscribeWorker(QThread):
                         tf.write(f"[{self.fmt_ts(seg['start'])}] {seg['speaker']}: {seg['text']}\n")
                 self.write_srt(merged, srt_path)
 
-                os.remove(chunk_wav)
+                # Удаление временного чанка
+                try:
+                    os.remove(chunk_wav)
+                except Exception:
+                    pass
                 self.progress_signal.emit(int(100 * (chunk_idx + 1) / n_chunks))
                 if self._stop:
                     self.log_signal.emit("Процесс остановлен пользователем.")
@@ -151,4 +157,11 @@ class TranscribeWorker(QThread):
             self.log_signal.emit("Сохранено:\n" + "\n".join([json_path, txt_path, srt_path, md_path]))
         except Exception as e:
             self.log_signal.emit(f"Ошибка: {str(e)}")
+        finally:
+            # Очистка временного wav файла
+            if wav_path and os.path.exists(wav_path):
+                try:
+                    os.remove(wav_path)
+                except Exception:
+                    pass
         self.finished_signal.emit()
