@@ -49,5 +49,4 @@ pyannote.audio требует GPU с >=11 GB VRAM для realtime-скорост
 В коде задан фиксированный размер чанка CHUNK_SECONDS = 300; при желании измените в worker.py.
 
 ## Лицензия
-Проект распространяется по лицензии MIT 
->>>>>>> 9484a34 (Initial commit: GUI, worker, docs, gitignore)
+Проект распространяется по лицензии MIT

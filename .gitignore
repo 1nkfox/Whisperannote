@@ -29,8 +29,10 @@ Thumbs.db
 *.mp4
 *.json
 *.txt
+!requirements.txt
 *.srt
-*.md
+# Ignore output markdown files but keep README
+!README.md
 
 # ─── Logs / Temp ──────────────────────────────────────────
 *.log

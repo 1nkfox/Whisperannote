@@ -1,12 +1,9 @@
 import sys
 import os
 import datetime
-import tempfile
-import subprocess
-import json
-from datetime import timedelta
 from PyQt5 import QtWidgets, QtCore
 from worker import TranscribeWorker
+
 
 class TitleBar(QtWidgets.QWidget):
     def __init__(self, parent):
@@ -45,6 +42,7 @@ class TitleBar(QtWidgets.QWidget):
     def mouseMoveEvent(self, event):
         if event.buttons() == QtCore.Qt.LeftButton:
             self.parent.move(self.parent.pos() + event.pos() - self.offset)
+
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -202,6 +200,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.log_with_time("Процесс завершён.")
+
 
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
