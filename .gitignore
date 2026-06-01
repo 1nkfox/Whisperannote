@@ -1,4 +1,4 @@
-# ─── Python ────────────────────────────────────────────────
+# Python
 __pycache__/
 *.py[cod]
 *.pyd
@@ -7,23 +7,27 @@ __pycache__/
 *.egg-info/
 .build/
 dist/
-
-# ─── Virtual environments ─────────────────────────────────
 .venv/
 env/
 venv/
 
-# ─── IDE / Editor settings ────────────────────────────────
+# IDE
 .vscode/
 .idea/
 *.sublime-workspace
 *.sublime-project
 
-# ─── OS / Misc ────────────────────────────────────────────
+# OS
 .DS_Store
 Thumbs.db
 
-# ─── Project outputs ──────────────────────────────────────
+# Secrets
+.env
+
+# Node
+node_modules/
+
+# Project outputs
 *.wav
 *.mp3
 *.mp4
@@ -31,10 +35,13 @@ Thumbs.db
 *.txt
 !requirements.txt
 *.srt
-# Ignore output markdown files but keep README
-!README.md
-
-# ─── Logs / Temp ──────────────────────────────────────────
 *.log
 *.tmp
 *.temp
+
+# Build artifacts
+out/
+release/
+*.exe
+*.dmg
+*.AppImage
