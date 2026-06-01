@@ -1,0 +1,89 @@
+<TechnologyStack VERSION="0.2.0">
+  <Runtime>Node.js 20+ (Electron 33) и Python 3.11+</Runtime>
+  <Language>TypeScript 5.5+ и Python 3.11+</Language>
+  <Framework>Electron 33 + React 18 (renderer) + FastAPI (backend)</Framework>
+
+  <Dependencies>
+    <!-- Electron main / renderer -->
+    <dep name="electron" version="33.x" purpose="Десктопная обёртка" />
+    <dep name="react" version="18.x" purpose="UI renderer" />
+    <dep name="tailwindcss" version="4.x" purpose="Стилизация" />
+    <dep name="shadcn-ui" version="latest" purpose="UI-компоненты над Radix" />
+    <dep name="zustand" version="latest" purpose="Состояние renderer" />
+    <dep name="react-i18next" version="latest" purpose="Интернационализация ru/en" />
+    <dep name="@tanstack/react-virtual" version="latest" purpose="Виртуализация списка сегментов" />
+    <dep name="@tanstack/react-query" version="latest" purpose="Fetching/кэширование" />
+    <dep name="chokidar" version="latest" purpose="File watcher (main)" />
+    <dep name="node-cron" version="latest" purpose="Cron-планировщик (main)" />
+    <dep name="electron-store" version="latest" purpose="Персистентный конфиг + защищённое хранение токена" />
+    <!-- Python backend -->
+    <dep name="fastapi" version="latest" purpose="HTTP + WebSocket сервер" />
+    <dep name="uvicorn" version="latest" purpose="ASGI-сервер" />
+    <dep name="faster-whisper" version="latest" purpose="Транскрибация (CTranslate2)" />
+    <dep name="pyannote.audio" version="3.1+" purpose="Диаризация спикеров" />
+    <dep name="torch" version="2.1+" purpose="ML runtime (CUDA build)" />
+    <dep name="torchaudio" version="2.1+" purpose="Аудио для torch" />
+    <dep name="huggingface-hub" version="0.23+" purpose="Загрузка моделей" />
+    <dep name="pydantic" version="latest" purpose="Валидация данных" />
+    <dep name="python-docx" version="latest" purpose="Экспорт DOCX" />
+  </Dependencies>
+
+  <VersionConstraints>
+    <constraint lib="torch" min="2.1.0" reason="Сборка с поддержкой CUDA; faster-whisper и pyannote зависят от torch CUDA" />
+    <constraint lib="pyannote.audio" min="3.1.0" reason="speaker-diarization-3.1 и hooks прогресса" />
+    <constraint lib="react" min="18.0.0" max="18.x" reason="Renderer рассчитан на React 18 API" />
+    <constraint lib="electron" min="33.0.0" reason="Современный Chromium + frameless API" />
+  </VersionConstraints>
+
+  <Tooling>
+    <tool name="frontend-bundler" value="electron-vite (vite 6)" version="6.x" />
+    <tool name="installer" value="electron-builder" version="latest" />
+    <tool name="ts-typecheck" value="tsc --noEmit" version="5.5+" />
+    <tool name="frontend-test-runner" value="vitest" version="latest" />
+    <tool name="backend-test-runner" value="pytest" version="latest" />
+    <tool name="python-deps" value="pip + requirements.txt" version="—" />
+  </Tooling>
+
+  <PreferredAgentStack>
+    <preferred-runtime-library>faster-whisper (CTranslate2) для транскрибации</preferred-runtime-library>
+    <preferred-test-library>vitest (frontend), pytest (backend)</preferred-test-library>
+    <preferred-observability-library>Структурные логи backend в stdout, перехват Python-manager → renderer</preferred-observability-library>
+    <discouraged-surface reason="Тянет второй ML-бэкенд и второй кодпас; в v2 не используем.">openai-whisper (PyTorch-граф) и любые CPU-кодпаты</discouraged-surface>
+    <discouraged-surface reason="Ручной чанкинг вреден с faster-whisper.">ffmpeg-нарезка аудио на 5-минутные чанки</discouraged-surface>
+  </PreferredAgentStack>
+
+  <Testing>
+    <module-level>
+      <command>pytest backend/tests/test_align.py</command>
+      <command>npm run typecheck</command>
+      <focus>Быстрые детерминированные проверки: max-overlap alignment, форматтеры, валидация путей, auth-токен</focus>
+    </module-level>
+    <wave-level>
+      <command>pytest backend/tests/test_pipeline_integration.py</command>
+      <focus>Слитые поверхности: pipeline на коротком реальном WAV (diarize+transcribe+align+format)</focus>
+    </wave-level>
+    <phase-level>
+      <command>pytest &amp;&amp; npm test</command>
+      <focus>Интеграция и регресс: запуск backend, health, очередь concurrency=1, e2e ручной транскрибации</focus>
+    </phase-level>
+    <mocking-policy>Тяжёлые ML-модели (pyannote, faster-whisper) подменяются фейками на module-level; реальные модели — только на wave/phase с малым сэмплом аудио. Сеть в тестах не используется.</mocking-policy>
+  </Testing>
+
+  <Observability>
+    <logger>Python: structlog/стандартный logging в stdout; Electron: захват stdout backend в Python-manager → лог-файл + renderer</logger>
+    <log-format>[Module][function][BLOCK_NAME] message</log-format>
+    <required-fields>task_id, stage, model</required-fields>
+    <redaction>Никогда не логировать HF-токен, секрет-токен backend, абсолютные пути с персональными данными в чистом виде.</redaction>
+  </Observability>
+
+  <AutonomyPolicy>
+    <default-execution-profile>balanced</default-execution-profile>
+    <max-fix-attempts-per-step>2</max-fix-attempts-per-step>
+    <replan-trigger>Не определён формат бандла Python/CUDA; противоречие в контракте; недоступная gated-модель.</replan-trigger>
+    <checkpoint-requirement>Каждый завершённый шаг оставляет: допущения, выполненные команды, собранные доказательства (логи/тесты), следующее действие.</checkpoint-requirement>
+  </AutonomyPolicy>
+
+  <DeliveryShape>
+    <shape>Десктопное приложение: Electron Main (Node) + Renderer (Chromium/React) + Python FastAPI как локальный subprocess на 127.0.0.1. Один пользователь, одна машина, один GPU, обработка строго последовательная.</shape>
+  </DeliveryShape>
+</TechnologyStack>

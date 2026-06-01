@@ -1,0 +1,593 @@
+<DevelopmentPlan VERSION="0.2.0">
+  <ArchitectureNotes>
+    <objective>Трёхпроцессная архитектура (Electron Main + Renderer + Python FastAPI). Переиспользовать пайплайн worker.py, но убрать ручной чанкинг и midpoint-alignment. GPU-only.</objective>
+    <non-goal>Никаких CPU-кодпатов, стриминга микрофона, облака/телеметрии и openai-whisper.</non-goal>
+    <risk-1>Упаковка PyTorch+CUDA в инсталлятор — отдельная фаза (Phase-8), главный риск.</risk-1>
+    <risk-2>Безопасность локального backend: токен + CORS + валидация путей обязательны с самого начала (M-AUTH).</risk-2>
+    <invariant-1>Один GPU-job одновременно (M-QUEUE concurrency=1).</invariant-1>
+    <invariant-2>Промежуточные файлы только в системном temp, удаляются в finally (M-FFMPEG, M-PIPELINE).</invariant-2>
+  </ArchitectureNotes>
+
+  <Modules>
+
+    <!-- ===================== BACKEND (Python) ===================== -->
+
+    <M-BACKEND-CONFIG NAME="BackendConfig" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Чтение конфигурации backend из env: порт, host, секрет-токен, HF-токен, MODEL_CACHE_DIR.</purpose>
+        <inputs><param name="env" type="os.environ" /></inputs>
+        <outputs><param name="config" type="BackendConfig" /></outputs>
+        <errors><error code="MISSING_SECRET_TOKEN" /></errors>
+      </contract>
+      <interface><export-load_config PURPOSE="Загрузить и провалидировать конфиг из env" /></interface>
+      <depends>none</depends>
+      <target><source>backend/config.py</source><tests>backend/tests/test_config.py</tests></target>
+      <observability><log-prefix>[Config]</log-prefix></observability>
+      <verification-ref>V-M-BACKEND-CONFIG</verification-ref>
+      <notes><note-1>Секреты приходят через env (Electron Main), не через argv и не из .env в проде.</note-1></notes>
+    </M-BACKEND-CONFIG>
+
+    <M-SCHEMAS NAME="Schemas" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Pydantic-модели запросов/ответов и доменных сущностей (TranscriptSegment, TranscriptionResult, TaskInfo, WSMessage, HealthStatus).</purpose>
+        <inputs><param name="dict" type="JSON" /></inputs>
+        <outputs><param name="model" type="BaseModel" /></outputs>
+      </contract>
+      <interface>
+        <export-TranscriptSegment PURPOSE="speaker, start, end, text, confidence" />
+        <export-TranscriptionResult PURPOSE="Итог транскрибации + speaker_names + output_files" />
+        <export-TaskInfo PURPOSE="Статус задачи в очереди" />
+      </interface>
+      <depends>none</depends>
+      <target><source>backend/models.py</source><tests>backend/tests/test_models.py</tests></target>
+      <verification-ref>V-M-SCHEMAS</verification-ref>
+      <notes><note-1>Адаптировано из WhisperLiveKit timed_objects.py; токен-уровень не нужен.</note-1></notes>
+    </M-SCHEMAS>
+
+    <M-AUTH NAME="AuthAndCors" TYPE="CORE_LOGIC" LAYER="1" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Middleware: проверка секрет-токена (Authorization: Bearer) на всех HTTP/WS и CORS-allowlist для origin Electron.</purpose>
+        <inputs><param name="request" type="Request" /><param name="secret" type="str" /></inputs>
+        <outputs><param name="allow_or_401" type="Response" /></outputs>
+        <errors><error code="UNAUTHORIZED_401" /></errors>
+      </contract>
+      <interface>
+        <export-require_token PURPOSE="Dependency/middleware проверки токена" />
+        <export-cors_middleware PURPOSE="CORS только для origin renderer" />
+      </interface>
+      <depends>M-BACKEND-CONFIG</depends>
+      <target><source>backend/auth.py</source><tests>backend/tests/test_auth.py</tests></target>
+      <observability><log-prefix>[Auth]</log-prefix><critical-block>BLOCK_VERIFY_TOKEN</critical-block></observability>
+      <verification-ref>V-M-AUTH</verification-ref>
+      <notes><note-1>Закрывает дыру наследованного allow_origins=["*"] из WhisperLiveKit.</note-1></notes>
+    </M-AUTH>
+
+    <M-FFMPEG NAME="FfmpegUtils" TYPE="UTILITY" LAYER="1" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Конвертация входа в MP3 128k, извлечение WAV 16k mono PCM, проверка FFmpeg, управление temp-файлами, валидация путей.</purpose>
+        <inputs><param name="input_path" type="str" /><param name="allowed_roots" type="list[str]" /></inputs>
+        <outputs><param name="wav_path" type="str (в системном temp)" /></outputs>
+        <errors><error code="FFMPEG_NOT_FOUND" /><error code="PATH_NOT_ALLOWED" /><error code="CONVERSION_FAILED" /></errors>
+      </contract>
+      <interface>
+        <export-to_mp3 PURPOSE="Любой формат в MP3 (temp)" />
+        <export-extract_wav PURPOSE="MP3/вход в WAV 16k mono (temp)" />
+        <export-validate_path PURPOSE="Путь принадлежит разрешённым папкам" />
+        <export-cleanup PURPOSE="Удаление temp-файлов" />
+      </interface>
+      <depends>M-BACKEND-CONFIG</depends>
+      <target><source>backend/utils.py</source><tests>backend/tests/test_ffmpeg.py</tests></target>
+      <observability><log-prefix>[Ffmpeg]</log-prefix><critical-block>BLOCK_EXTRACT_WAV</critical-block></observability>
+      <verification-ref>V-M-FFMPEG</verification-ref>
+      <notes><note-1>В v1 WAV писался рядом с источником — теперь только системный temp + cleanup в finally.</note-1></notes>
+    </M-FFMPEG>
+
+    <M-PROGRESS NAME="ProgressManager" TYPE="INTEGRATION" LAYER="1" ORDER="3" STATUS="planned">
+      <contract>
+        <purpose>WebSocket-менеджер прогресса по task_id (однонаправленно сервер to клиент).</purpose>
+        <inputs><param name="task_id" type="str" /><param name="message" type="WSMessage" /></inputs>
+        <outputs><param name="sent" type="void" /></outputs>
+      </contract>
+      <interface>
+        <export-connect PURPOSE="Принять WS и связать с task_id" />
+        <export-send_progress PURPOSE="Отправить stage/progress/log/complete/error" />
+        <export-disconnect PURPOSE="Отвязать соединение" />
+      </interface>
+      <depends>M-AUTH</depends>
+      <target><source>backend/websocket_manager.py</source><tests>backend/tests/test_progress.py</tests></target>
+      <observability><log-prefix>[Progress]</log-prefix></observability>
+      <verification-ref>V-M-PROGRESS</verification-ref>
+      <notes><note-1>Паттерн из WhisperLiveKit, упрощён до однонаправленного.</note-1></notes>
+    </M-PROGRESS>
+
+    <M-MODELS NAME="ModelRegistry" TYPE="CORE_LOGIC" LAYER="2" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Реестр доступных faster-whisper моделей, статус скачивания, загрузка моделей с прогрессом.</purpose>
+        <inputs><param name="model" type="str" /></inputs>
+        <outputs><param name="models" type="AvailableModels" /></outputs>
+        <errors><error code="MODEL_DOWNLOAD_FAILED" /><error code="HF_AUTH_FAILED" /></errors>
+      </contract>
+      <interface>
+        <export-list_models PURPOSE="available/downloaded/current" />
+        <export-download_model PURPOSE="Скачать модель, стримить прогресс по WS" />
+      </interface>
+      <depends>M-BACKEND-CONFIG, M-PROGRESS</depends>
+      <target><source>backend/models_registry.py</source><tests>backend/tests/test_models_registry.py</tests></target>
+      <observability><log-prefix>[Models]</log-prefix></observability>
+      <verification-ref>V-M-MODELS</verification-ref>
+      <notes><note-1>Только CT2-сборки faster-whisper: large-v3, large-v3-turbo, medium.</note-1></notes>
+    </M-MODELS>
+
+    <M-DIARIZE NAME="Diarization" TYPE="CORE_LOGIC" LAYER="2" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Диаризация полного аудио через pyannote speaker-diarization-3.1 на CUDA; опц. num_speakers.</purpose>
+        <inputs><param name="wav_path" type="str" /><param name="num_speakers" type="int|null" /></inputs>
+        <outputs><param name="spk_segments" type="list[SpeakerSegment]" /></outputs>
+        <errors><error code="HF_AUTH_FAILED" /><error code="CUDA_UNAVAILABLE" /></errors>
+      </contract>
+      <interface><export-diarize PURPOSE="WAV в список speaker-сегментов" /></interface>
+      <depends>M-BACKEND-CONFIG, M-PROGRESS</depends>
+      <target><source>backend/pipeline.py</source><tests>backend/tests/test_diarize.py</tests></target>
+      <observability><log-prefix>[Diarize]</log-prefix><critical-block>BLOCK_RUN_PIPELINE</critical-block></observability>
+      <verification-ref>V-M-DIARIZE</verification-ref>
+      <notes><note-1>Модель грузится один раз (lifespan). Использовать ProgressHook pyannote для прогресса.</note-1></notes>
+    </M-DIARIZE>
+
+    <M-TRANSCRIBE NAME="Transcription" TYPE="CORE_LOGIC" LAYER="2" ORDER="3" STATUS="planned">
+      <contract>
+        <purpose>Нативная транскрибация всего файла faster-whisper (language=ru, vad_filter=True), кооперативная отмена между сегментами.</purpose>
+        <inputs><param name="wav_path" type="str" /><param name="language" type="str=ru" /><param name="cancel_event" type="Event" /></inputs>
+        <outputs><param name="segments" type="list[TranscriptSegment]" /></outputs>
+        <errors><error code="MODEL_NOT_LOADED" /><error code="CANCELLED" /></errors>
+      </contract>
+      <interface><export-transcribe PURPOSE="WAV в текстовые сегменты с confidence" /></interface>
+      <depends>M-MODELS, M-PROGRESS</depends>
+      <target><source>backend/pipeline.py</source><tests>backend/tests/test_transcribe.py</tests></target>
+      <observability><log-prefix>[Transcribe]</log-prefix><critical-block>BLOCK_ITER_SEGMENTS</critical-block></observability>
+      <verification-ref>V-M-TRANSCRIBE</verification-ref>
+      <notes><note-1>БЕЗ ручного чанкинга. API: segments, info = model.transcribe(...); segments — генератор. confidence=exp(avg_logprob).</note-1></notes>
+    </M-TRANSCRIBE>
+
+    <M-ALIGN NAME="SpeakerAlignment" TYPE="CORE_LOGIC" LAYER="2" ORDER="4" STATUS="planned">
+      <contract>
+        <purpose>Сопоставление текстовых сегментов со спикерами методом максимального перекрытия (max-overlap).</purpose>
+        <inputs><param name="text_segments" type="list[TranscriptSegment]" /><param name="spk_segments" type="list[SpeakerSegment]" /></inputs>
+        <outputs><param name="aligned" type="list[TranscriptSegment]" /></outputs>
+      </contract>
+      <interface><export-align PURPOSE="Назначить спикера по argmax перекрытия; fallback UNKNOWN" /></interface>
+      <depends>M-SCHEMAS</depends>
+      <target><source>backend/pipeline.py</source><tests>backend/tests/test_align.py</tests></target>
+      <observability><log-prefix>[Align]</log-prefix></observability>
+      <verification-ref>V-M-ALIGN</verification-ref>
+      <notes><note-1>Замена midpoint из worker.py; единый fallback-лейбл UNKNOWN.</note-1></notes>
+    </M-ALIGN>
+
+    <M-FORMAT NAME="Formatters" TYPE="CORE_LOGIC" LAYER="2" ORDER="5" STATUS="planned">
+      <contract>
+        <purpose>Сериализация результата в JSON/TXT/SRT/DOCX с применением пользовательских имён спикеров.</purpose>
+        <inputs><param name="result" type="TranscriptionResult" /><param name="speaker_names" type="dict" /><param name="formats" type="list[str]" /></inputs>
+        <outputs><param name="output_files" type="dict[str,str]" /></outputs>
+        <errors><error code="WRITE_FAILED" /></errors>
+      </contract>
+      <interface>
+        <export-to_json PURPOSE="JSON массив сегментов" />
+        <export-to_txt PURPOSE="[HH:MM:SS] SPEAKER: text" />
+        <export-to_srt PURPOSE="SubRip с указанием спикера" />
+        <export-to_docx PURPOSE="Word с форматированием" />
+      </interface>
+      <depends>M-SCHEMAS</depends>
+      <target><source>backend/formatters.py</source><tests>backend/tests/test_formatters.py</tests></target>
+      <observability><log-prefix>[Format]</log-prefix></observability>
+      <verification-ref>V-M-FORMAT</verification-ref>
+      <notes><note-1>MD убран (дублировал TXT); DOCX добавлен (python-docx). Запись в outputFolder.</note-1></notes>
+    </M-FORMAT>
+
+    <M-PIPELINE NAME="Pipeline" TYPE="CORE_LOGIC" LAYER="3" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Оркестрация конвейера: convert to mp3, extract wav, diarize, transcribe, align, format; прогресс, отмена, очистка temp в finally.</purpose>
+        <inputs><param name="job" type="TranscribeJob" /><param name="cancel_event" type="Event" /></inputs>
+        <outputs><param name="result" type="TranscriptionResult" /></outputs>
+        <errors><error code="PIPELINE_FAILED" /><error code="CANCELLED" /></errors>
+      </contract>
+      <interface><export-run PURPOSE="Выполнить весь конвейер для одного файла" /></interface>
+      <depends>M-FFMPEG, M-DIARIZE, M-TRANSCRIBE, M-ALIGN, M-FORMAT, M-PROGRESS</depends>
+      <target><source>backend/pipeline.py</source><tests>backend/tests/test_pipeline_integration.py</tests></target>
+      <observability><log-prefix>[Pipeline]</log-prefix><critical-block>BLOCK_RUN_PIPELINE</critical-block></observability>
+      <verification-ref>V-M-PIPELINE</verification-ref>
+      <notes><note-1>Адаптация worker.py. Тяжёлые шаги — asyncio.to_thread.</note-1></notes>
+    </M-PIPELINE>
+
+    <M-QUEUE NAME="QueueManager" TYPE="CORE_LOGIC" LAYER="4" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>FIFO-очередь задач на asyncio.Queue со строгой последовательной обработкой (один GPU-job).</purpose>
+        <inputs><param name="job" type="TranscribeJob" /></inputs>
+        <outputs><param name="task" type="TaskInfo" /></outputs>
+        <errors><error code="QUEUE_FULL" /></errors>
+      </contract>
+      <interface>
+        <export-enqueue PURPOSE="Добавить задачу" />
+        <export-status PURPOSE="queued/processing(0..1)/tasks" />
+        <export-cancel PURPOSE="Отменить задачу по id" />
+      </interface>
+      <depends>M-PIPELINE</depends>
+      <target><source>backend/queue_manager.py</source><tests>backend/tests/test_queue.py</tests></target>
+      <observability><log-prefix>[Queue]</log-prefix><critical-block>BLOCK_PROCESS_NEXT</critical-block></observability>
+      <verification-ref>V-M-QUEUE</verification-ref>
+      <notes><note-1>concurrency=1 — инвариант против OOM на единственном GPU.</note-1></notes>
+    </M-QUEUE>
+
+    <M-SERVER NAME="FastApiServer" TYPE="ENTRY_POINT" LAYER="5" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>FastAPI-приложение: lifespan (HF login, загрузка моделей, проверка CUDA), маршруты, WS, auth, CORS.</purpose>
+        <inputs><param name="http_request" type="Request" /></inputs>
+        <outputs><param name="response" type="Response" /></outputs>
+        <errors><error code="CUDA_UNAVAILABLE" /><error code="UNAUTHORIZED_401" /></errors>
+      </contract>
+      <interface>
+        <export-app PURPOSE="ASGI-приложение" />
+        <export-route_transcribe PURPOSE="POST /api/transcribe" />
+        <export-route_queue PURPOSE="POST /api/queue, GET /api/queue/status, DELETE /api/queue/:id" />
+        <export-route_models PURPOSE="GET /api/models, POST /api/models/download" />
+        <export-route_health PURPOSE="GET /api/health" />
+        <export-ws_progress PURPOSE="WS /ws/progress/:task_id" />
+      </interface>
+      <depends>M-AUTH, M-QUEUE, M-MODELS, M-PROGRESS, M-BACKEND-CONFIG, M-SCHEMAS</depends>
+      <target><source>backend/server.py</source><tests>backend/tests/test_server.py</tests></target>
+      <observability><log-prefix>[Server]</log-prefix><critical-block>BLOCK_LIFESPAN_INIT</critical-block></observability>
+      <verification-ref>V-M-SERVER</verification-ref>
+      <notes><note-1>bind 127.0.0.1. При cuda_available=false — health status=error, обработка не стартует.</note-1></notes>
+    </M-SERVER>
+
+    <!-- ===================== ELECTRON MAIN (TypeScript) ===================== -->
+
+    <M-CONFIG-STORE NAME="ConfigStore" TYPE="DATA_LAYER" LAYER="0" ORDER="3" STATUS="planned">
+      <contract>
+        <purpose>Обёртка electron-store: настройки + защищённое хранение HF-токена (safeStorage/keychain).</purpose>
+        <inputs><param name="key" type="string" /><param name="value" type="unknown" /></inputs>
+        <outputs><param name="config" type="AppConfig" /></outputs>
+      </contract>
+      <interface>
+        <export-getConfig PURPOSE="Прочитать конфиг" />
+        <export-setConfig PURPOSE="Записать значение" />
+        <export-getSecretHfToken PURPOSE="Достать токен из защищённого хранилища" />
+      </interface>
+      <depends>none</depends>
+      <target><source>electron/config-store.ts</source><tests>tests/main/config-store.test.ts</tests></target>
+      <verification-ref>V-M-CONFIG-STORE</verification-ref>
+      <notes><note-1>HF-токен не пишется в открытый JSON; история без полных текстов.</note-1></notes>
+    </M-CONFIG-STORE>
+
+    <M-PY-MANAGER NAME="PythonManager" TYPE="INTEGRATION" LAYER="1" ORDER="4" STATUS="planned">
+      <contract>
+        <purpose>Жизненный цикл Python backend: подбор свободного порта, генерация секрет-токена, проброс HF-токена через env, spawn uvicorn, health, рестарт, graceful shutdown, захват логов.</purpose>
+        <inputs><param name="port" type="number" /><param name="hfToken" type="string" /></inputs>
+        <outputs><param name="status" type="{port, token, running}" /></outputs>
+        <errors><error code="PYTHON_NOT_FOUND" /><error code="BACKEND_START_FAILED" /></errors>
+      </contract>
+      <interface>
+        <export-start PURPOSE="Запустить backend и вернуть порт/токен" />
+        <export-stop PURPOSE="Graceful shutdown (SIGTERM to SIGKILL)" />
+        <export-getStatus PURPOSE="running/port" />
+      </interface>
+      <depends>M-CONFIG-STORE</depends>
+      <target><source>electron/python-manager.ts</source><tests>tests/main/python-manager.test.ts</tests></target>
+      <observability><log-prefix>[PyManager]</log-prefix><critical-block>BLOCK_SPAWN_BACKEND</critical-block></observability>
+      <verification-ref>V-M-PY-MANAGER</verification-ref>
+      <notes><note-1>Токен передаётся через env, не через argv (argv виден в списке процессов).</note-1></notes>
+    </M-PY-MANAGER>
+
+    <M-WATCHER NAME="FileWatcher" TYPE="INTEGRATION" LAYER="1" ORDER="5" STATUS="planned">
+      <contract>
+        <purpose>chokidar-наблюдение за папкой: стабилизация 2 c, фильтр расширений, игнор временных и сгенерированных файлов, дедупликация.</purpose>
+        <inputs><param name="watchFolder" type="string" /></inputs>
+        <outputs><param name="newFileEvent" type="{filePath,fileName}" /></outputs>
+      </contract>
+      <interface>
+        <export-start PURPOSE="Запустить watcher" />
+        <export-stop PURPOSE="Остановить watcher" />
+      </interface>
+      <depends>M-CONFIG-STORE</depends>
+      <target><source>electron/file-watcher.ts</source><tests>tests/main/file-watcher.test.ts</tests></target>
+      <observability><log-prefix>[Watcher]</log-prefix><critical-block>BLOCK_STABILIZE_FILE</critical-block></observability>
+      <verification-ref>V-M-WATCHER</verification-ref>
+      <notes><note-1>Промежуточные файлы не пишутся в watchFolder → нет петли переобработки.</note-1></notes>
+    </M-WATCHER>
+
+    <M-SCHEDULER NAME="Scheduler" TYPE="INTEGRATION" LAYER="1" ORDER="6" STATUS="planned">
+      <contract>
+        <purpose>node-cron планировщик: периодическое сканирование папки, постановка новых файлов в очередь.</purpose>
+        <inputs><param name="cronExpression" type="string" /></inputs>
+        <outputs><param name="scanResult" type="string[]" /></outputs>
+      </contract>
+      <interface><export-schedule PURPOSE="Запланировать сканирование" /></interface>
+      <depends>M-WATCHER, M-CONFIG-STORE</depends>
+      <target><source>electron/scheduler.ts</source><tests>tests/main/scheduler.test.ts</tests></target>
+      <verification-ref>V-M-SCHEDULER</verification-ref>
+    </M-SCHEDULER>
+
+    <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" LAYER="2" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Регистрация IPC-обработчиков (select-file/folder, get/set-config, start/stop-backend, статус) через безопасный contextBridge.</purpose>
+        <inputs><param name="channel" type="string" /><param name="args" type="unknown[]" /></inputs>
+        <outputs><param name="result" type="unknown" /></outputs>
+      </contract>
+      <interface><export-registerIpc PURPOSE="Зарегистрировать белый список каналов" /></interface>
+      <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER</depends>
+      <target><source>electron/ipc-handlers.ts</source><tests>tests/main/ipc.test.ts</tests></target>
+      <verification-ref>V-M-IPC</verification-ref>
+    </M-IPC>
+
+    <M-PRELOAD NAME="Preload" TYPE="INTEGRATION" LAYER="1" ORDER="7" STATUS="planned">
+      <contract>
+        <purpose>contextBridge: безопасный белый список методов Main для renderer.</purpose>
+        <inputs><param name="none" type="—" /></inputs>
+        <outputs><param name="window.electron" type="ElectronApi" /></outputs>
+      </contract>
+      <interface><export-electronApi PURPOSE="Типобезопасный мост IPC" /></interface>
+      <depends>none</depends>
+      <target><source>electron/preload.ts</source><tests>tests/main/preload.test.ts</tests></target>
+      <verification-ref>V-M-PRELOAD</verification-ref>
+    </M-PRELOAD>
+
+    <M-MAIN NAME="ElectronMain" TYPE="ENTRY_POINT" LAYER="3" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Точка входа Electron: frameless BrowserWindow, инициализация PyManager/Watcher/Scheduler/IPC, жизненный цикл.</purpose>
+        <inputs><param name="appEvents" type="Electron.App" /></inputs>
+        <outputs><param name="window" type="BrowserWindow" /></outputs>
+      </contract>
+      <interface><export-bootstrap PURPOSE="Поднять приложение" /></interface>
+      <depends>M-IPC, M-PY-MANAGER, M-WATCHER, M-SCHEDULER, M-PRELOAD</depends>
+      <target><source>electron/main.ts</source><tests>tests/main/main.test.ts</tests></target>
+      <observability><log-prefix>[Main]</log-prefix></observability>
+      <verification-ref>V-M-MAIN</verification-ref>
+    </M-MAIN>
+
+    <!-- ===================== RENDERER (React) ===================== -->
+
+    <M-UI NAME="UiPrimitives" TYPE="UI_COMPONENT" LAYER="0" ORDER="4" STATUS="planned">
+      <contract>
+        <purpose>Набор shadcn/ui компонентов (~15): button, card, select, switch, tabs, dialog, progress, table, toast и т.д.</purpose>
+        <inputs><param name="props" type="ComponentProps" /></inputs>
+        <outputs><param name="element" type="ReactNode" /></outputs>
+      </contract>
+      <interface><export-components PURPOSE="Базовые UI-примитивы" /></interface>
+      <depends>none</depends>
+      <target><source>src/components/ui/</source><tests>tests/frontend/ui.test.tsx</tests></target>
+      <verification-ref>V-M-UI</verification-ref>
+      <notes><note-1>15 из 48 врапперов Whisperer_v1; select берём (один раз).</note-1></notes>
+    </M-UI>
+
+    <M-I18N NAME="I18n" TYPE="UTILITY" LAYER="0" ORDER="5" STATUS="planned">
+      <contract>
+        <purpose>react-i18next: ru (основной) + en (fallback), переключение языка.</purpose>
+        <inputs><param name="key" type="string" /></inputs>
+        <outputs><param name="translation" type="string" /></outputs>
+      </contract>
+      <interface><export-i18n PURPOSE="Инстанс i18next" /><export-useTranslation PURPOSE="Хук перевода" /></interface>
+      <depends>none</depends>
+      <target><source>src/i18n/</source><tests>tests/frontend/i18n.test.ts</tests></target>
+      <verification-ref>V-M-I18N</verification-ref>
+      <notes><note-1>Адаптация locales/ru из Whisperer_v1 в формат react-i18next.</note-1></notes>
+    </M-I18N>
+
+    <M-STORES NAME="Stores" TYPE="DATA_LAYER" LAYER="1" ORDER="8" STATUS="planned">
+      <contract>
+        <purpose>Zustand-сторы: settings, transcription (+speakerNames), batch, backend.</purpose>
+        <inputs><param name="action" type="StoreAction" /></inputs>
+        <outputs><param name="state" type="StoreState" /></outputs>
+      </contract>
+      <interface>
+        <export-useSettingsStore PURPOSE="Настройки (model, numSpeakers, hasHfToken, папки...)" />
+        <export-useTranscriptionStore PURPOSE="Активные задачи + speakerNames" />
+        <export-useBatchStore PURPOSE="Очередь и история" />
+        <export-useBackendStore PURPOSE="Статус backend/GPU" />
+      </interface>
+      <depends>none</depends>
+      <target><source>src/stores/</source><tests>tests/frontend/stores.test.ts</tests></target>
+      <verification-ref>V-M-STORES</verification-ref>
+    </M-STORES>
+
+    <M-API-CLIENT NAME="ApiClient" TYPE="INTEGRATION" LAYER="1" ORDER="9" STATUS="planned">
+      <contract>
+        <purpose>HTTP-клиент (с Authorization: Bearer) и useWebSocket с переподключением и ре-подпиской на task_id.</purpose>
+        <inputs><param name="endpoint" type="string" /><param name="token" type="string" /></inputs>
+        <outputs><param name="data" type="ApiResponse" /></outputs>
+        <errors><error code="UNAUTHORIZED" /><error code="NETWORK" /></errors>
+      </contract>
+      <interface>
+        <export-api PURPOSE="HTTP-запросы к backend с токеном" />
+        <export-useWebSocket PURPOSE="WS прогресса с reconnect" />
+      </interface>
+      <depends>M-STORES</depends>
+      <target><source>src/lib/api.ts</source><tests>tests/frontend/api.test.ts</tests></target>
+      <observability><log-prefix>[ApiClient]</log-prefix><critical-block>BLOCK_WS_RECONNECT</critical-block></observability>
+      <verification-ref>V-M-API-CLIENT</verification-ref>
+      <notes><note-1>На reconnect: GET /api/queue/status, затем resubscribe на /ws/progress/:id.</note-1></notes>
+    </M-API-CLIENT>
+
+    <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" LAYER="2" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Каркас: Sidebar (3 вкладки), Header (frameless title bar), StatusBar (backend/watcher/GPU/версия), тема.</purpose>
+        <inputs><param name="children" type="ReactNode" /></inputs>
+        <outputs><param name="layout" type="ReactNode" /></outputs>
+      </contract>
+      <interface><export-AppShell PURPOSE="Основной layout" /></interface>
+      <depends>M-UI, M-I18N, M-STORES</depends>
+      <target><source>src/components/layout/</source><tests>tests/frontend/app-shell.test.tsx</tests></target>
+      <verification-ref>V-M-APP-SHELL</verification-ref>
+    </M-APP-SHELL>
+
+    <M-UPLOAD NAME="UploadView" TYPE="UI_COMPONENT" LAYER="3" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Drag-and-drop, file picker, QuickSettings (модель, num_speakers), запуск транскрибации, ProgressCard.</purpose>
+        <inputs><param name="files" type="File[]" /></inputs>
+        <outputs><param name="taskId" type="string" /></outputs>
+      </contract>
+      <interface><export-UploadView PURPOSE="Вкладка ручной транскрибации" /></interface>
+      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <target><source>src/components/upload/</source><tests>tests/frontend/upload.test.tsx</tests></target>
+      <verification-ref>V-M-UPLOAD</verification-ref>
+    </M-UPLOAD>
+
+    <M-RESULTS NAME="ResultsView" TYPE="UI_COMPONENT" LAYER="3" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Виртуализированный список сегментов, легенда и переименование спикеров, ExportPanel, копирование.</purpose>
+        <inputs><param name="result" type="TranscriptionResult" /></inputs>
+        <outputs><param name="exportedFiles" type="string[]" /></outputs>
+      </contract>
+      <interface>
+        <export-SegmentList PURPOSE="Виртуализированный список (react-virtual)" />
+        <export-SpeakerLegend PURPOSE="Легенда + переименование" />
+        <export-ExportPanel PURPOSE="Экспорт/копирование" />
+      </interface>
+      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <target><source>src/components/transcription/</source><tests>tests/frontend/results.test.tsx</tests></target>
+      <verification-ref>V-M-RESULTS</verification-ref>
+      <notes><note-1>speakerNames из стора применяются и в UI, и при экспорте.</note-1></notes>
+    </M-RESULTS>
+
+    <M-BATCH NAME="BatchView" TYPE="UI_COMPONENT" LAYER="3" ORDER="3" STATUS="planned">
+      <contract>
+        <purpose>FolderConfig (папка, cron, вкл/выкл), QueueList, HistoryTable.</purpose>
+        <inputs><param name="config" type="BatchConfig" /></inputs>
+        <outputs><param name="batchState" type="BatchState" /></outputs>
+      </contract>
+      <interface><export-BatchView PURPOSE="Вкладка мониторинга папки" /></interface>
+      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <target><source>src/components/batch/</source><tests>tests/frontend/batch.test.tsx</tests></target>
+      <verification-ref>V-M-BATCH</verification-ref>
+    </M-BATCH>
+
+    <M-SETTINGS NAME="SettingsView" TYPE="UI_COMPONENT" LAYER="3" ORDER="4" STATUS="planned">
+      <contract>
+        <purpose>ModelSettings (модель; GPU фиксирован), OutputSettings, HfTokenSettings, GeneralSettings (язык, тема, порт).</purpose>
+        <inputs><param name="settings" type="AppConfig" /></inputs>
+        <outputs><param name="updated" type="AppConfig" /></outputs>
+      </contract>
+      <interface><export-SettingsView PURPOSE="Вкладка настроек" /></interface>
+      <depends>M-STORES, M-UI</depends>
+      <target><source>src/components/settings/</source><tests>tests/frontend/settings.test.tsx</tests></target>
+      <verification-ref>V-M-SETTINGS</verification-ref>
+    </M-SETTINGS>
+
+    <M-ONBOARDING NAME="Onboarding" TYPE="UI_COMPONENT" LAYER="3" ORDER="5" STATUS="planned">
+      <contract>
+        <purpose>FirstRunWizard: проверка FFmpeg/CUDA, ввод HF-токена, загрузка моделей с прогрессом.</purpose>
+        <inputs><param name="health" type="HealthStatus" /></inputs>
+        <outputs><param name="ready" type="boolean" /></outputs>
+        <errors><error code="CUDA_UNAVAILABLE" /><error code="FFMPEG_NOT_FOUND" /></errors>
+      </contract>
+      <interface><export-FirstRunWizard PURPOSE="Мастер первого запуска" /><export-ModelDownload PURPOSE="Загрузка моделей" /></interface>
+      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <target><source>src/components/onboarding/</source><tests>tests/frontend/onboarding.test.tsx</tests></target>
+      <verification-ref>V-M-ONBOARDING</verification-ref>
+    </M-ONBOARDING>
+
+  </Modules>
+
+  <DataFlow>
+    <DF-TRANSCRIBE NAME="Ручная транскрибация" TRIGGER="User: drag-and-drop + Расшифровать">
+      <step-1>Renderer (M-UPLOAD) отправляет файл в POST /api/transcribe с секрет-токеном</step-1>
+      <step-2>M-SERVER кладёт задачу в M-QUEUE (concurrency=1), возвращает task_id</step-2>
+      <step-3>M-PIPELINE: M-FFMPEG (mp3+wav в temp) to M-DIARIZE to M-TRANSCRIBE to M-ALIGN to M-FORMAT</step-3>
+      <step-4>M-PROGRESS стримит stage/progress/complete в renderer по WS; M-API-CLIENT держит reconnect</step-4>
+      <step-5>M-RESULTS показывает сегменты; temp-файлы удалены в finally</step-5>
+      <evidence>Логи [Pipeline][run][BLOCK_RUN_PIPELINE]; complete-сообщение WS; отсутствие temp-файлов</evidence>
+    </DF-TRANSCRIBE>
+
+    <DF-EXPORT NAME="Экспорт с именами спикеров" TRIGGER="User: переименование + Экспорт">
+      <step-1>M-RESULTS обновляет speakerNames в M-STORES</step-1>
+      <step-2>Экспорт вызывает M-FORMAT с speaker_names</step-2>
+      <step-3>Файлы JSON/TXT/SRT/DOCX пишутся в outputFolder с применёнными именами</step-3>
+      <evidence>Содержимое экспортированных файлов содержит пользовательские имена, не SPEAKER_00</evidence>
+    </DF-EXPORT>
+
+    <DF-WATCH NAME="Автообработка папки" TRIGGER="System: новый файл или cron">
+      <step-1>M-WATCHER ловит add, стабилизирует 2 c, фильтрует расширение и сгенерированные файлы</step-1>
+      <step-2>M-IPC/Main отправляет POST /api/queue (валидация file_path в M-FFMPEG)</step-2>
+      <step-3>M-QUEUE обрабатывает последовательно через M-PIPELINE</step-3>
+      <step-4>Дедупликация по path+size+mtime; результаты в outputFolder не вызывают повторную обработку</step-4>
+      <evidence>Новый файл обработан один раз; нет повторной постановки результатов в очередь</evidence>
+    </DF-WATCH>
+
+    <DF-ONBOARD NAME="Первый запуск" TRIGGER="firstRun=true">
+      <step-1>M-ONBOARDING запрашивает GET /api/health (FFmpeg/CUDA)</step-1>
+      <step-2>Пользователь вводит HF-токен to M-CONFIG-STORE (защищённо)</step-2>
+      <step-3>POST /api/models/download, прогресс по WS</step-3>
+      <step-4>Готовность; firstRun=false</step-4>
+      <evidence>health.cuda_available=true; модели в models_cached; ошибка при отсутствии CUDA/FFmpeg</evidence>
+    </DF-ONBOARD>
+  </DataFlow>
+
+  <ImplementationOrder>
+    <Phase-0 name="Init + GRACE" status="pending">
+      <goal>Структура проекта и GRACE-артефакты, контракты модулей</goal>
+      <step-1 module="—" status="pending">grace-init, grace-plan, grace-verification</step-1>
+    </Phase-0>
+    <Phase-1 name="Каркас Electron+React" status="pending">
+      <goal>Сборка electron-vite, Tailwind, shadcn/ui, типы</goal>
+      <step-1 module="M-UI" status="pending" verification="V-M-UI">UI-примитивы</step-1>
+      <step-2 module="M-I18N" status="pending" verification="V-M-I18N">i18n ru/en</step-2>
+    </Phase-1>
+    <Phase-2 name="Backend Core" status="pending">
+      <goal>FastAPI, auth, pipeline без чанкинга, очередь, WS</goal>
+      <step-1 module="M-BACKEND-CONFIG" status="pending" verification="V-M-BACKEND-CONFIG">Конфиг из env</step-1>
+      <step-2 module="M-SCHEMAS" status="pending" verification="V-M-SCHEMAS">Pydantic-модели</step-2>
+      <step-3 module="M-AUTH" status="pending" verification="V-M-AUTH">Токен + CORS</step-3>
+      <step-4 module="M-FFMPEG" status="pending" verification="V-M-FFMPEG">Конвертация + temp + валидация путей</step-4>
+      <step-5 module="M-DIARIZE" status="pending" verification="V-M-DIARIZE">Диаризация</step-5>
+      <step-6 module="M-TRANSCRIBE" status="pending" verification="V-M-TRANSCRIBE">Транскрибация нативно</step-6>
+      <step-7 module="M-ALIGN" status="pending" verification="V-M-ALIGN">max-overlap</step-7>
+      <step-8 module="M-FORMAT" status="pending" verification="V-M-FORMAT">Форматтеры</step-8>
+      <step-9 module="M-PIPELINE" status="pending" verification="V-M-PIPELINE">Оркестрация</step-9>
+      <step-10 module="M-QUEUE" status="pending" verification="V-M-QUEUE">Очередь concurrency=1</step-10>
+      <step-11 module="M-PROGRESS" status="pending" verification="V-M-PROGRESS">WS прогресса</step-11>
+      <step-12 module="M-MODELS" status="pending" verification="V-M-MODELS">Реестр+загрузка моделей</step-12>
+      <step-13 module="M-SERVER" status="pending" verification="V-M-SERVER">Сборка сервера</step-13>
+    </Phase-2>
+    <Phase-3 name="Electron Shell" status="pending">
+      <goal>Main process, Python manager, IPC, config-store</goal>
+      <step-1 module="M-CONFIG-STORE" status="pending" verification="V-M-CONFIG-STORE">Стор+токен</step-1>
+      <step-2 module="M-PY-MANAGER" status="pending" verification="V-M-PY-MANAGER">Менеджер backend</step-2>
+      <step-3 module="M-PRELOAD" status="pending" verification="V-M-PRELOAD">contextBridge</step-3>
+      <step-4 module="M-IPC" status="pending" verification="V-M-IPC">IPC</step-4>
+      <step-5 module="M-MAIN" status="pending" verification="V-M-MAIN">Точка входа</step-5>
+    </Phase-3>
+    <Phase-4 name="UI транскрибация" status="pending">
+      <goal>Ручная транскрибация end-to-end</goal>
+      <step-1 module="M-STORES" status="pending" verification="V-M-STORES">Сторы</step-1>
+      <step-2 module="M-API-CLIENT" status="pending" verification="V-M-API-CLIENT">HTTP+WS reconnect</step-2>
+      <step-3 module="M-APP-SHELL" status="pending" verification="V-M-APP-SHELL">Каркас</step-3>
+      <step-4 module="M-UPLOAD" status="pending" verification="V-M-UPLOAD">Загрузка</step-4>
+      <step-5 module="M-RESULTS" status="pending" verification="V-M-RESULTS">Результаты+спикеры</step-5>
+    </Phase-4>
+    <Phase-5 name="Автообработка" status="pending">
+      <goal>Watcher, scheduler, batch UI, дедупликация</goal>
+      <step-1 module="M-WATCHER" status="pending" verification="V-M-WATCHER">File watcher</step-1>
+      <step-2 module="M-SCHEDULER" status="pending" verification="V-M-SCHEDULER">Cron</step-2>
+      <step-3 module="M-BATCH" status="pending" verification="V-M-BATCH">Batch UI</step-3>
+    </Phase-5>
+    <Phase-6 name="Настройки+онбординг+i18n" status="pending">
+      <goal>Настройки, HF-токен, загрузка моделей, темы</goal>
+      <step-1 module="M-SETTINGS" status="pending" verification="V-M-SETTINGS">Настройки</step-1>
+      <step-2 module="M-ONBOARDING" status="pending" verification="V-M-ONBOARDING">Онбординг</step-2>
+    </Phase-6>
+    <Phase-7 name="Экспорт+ошибки+тесты" status="pending">
+      <goal>DOCX, обработка ошибок, юнит-тесты, базовый CI</goal>
+      <step-1 module="M-FORMAT" status="pending" verification="V-M-FORMAT">DOCX</step-1>
+    </Phase-7>
+    <Phase-8 name="Упаковка GPU-стека" status="pending">
+      <goal>Бандл Python+PyTorch CUDA+cuDNN/cuBLAS, инсталлятор, прогон на чистой машине</goal>
+      <step-1 module="M-MAIN" status="pending" verification="V-M-MAIN">electron-builder + ресурсы</step-1>
+    </Phase-8>
+  </ImplementationOrder>
+
+  <ExecutionPolicy>
+    <default-profile>balanced</default-profile>
+    <controller-owns>docs/development-plan.xml, docs/knowledge-graph.xml, docs/verification-plan.xml</controller-owns>
+    <worker-owns>Только файлы исходников модуля и его локальные тесты в одобренном write-scope.</worker-owns>
+    <max-fix-attempts-per-step>2</max-fix-attempts-per-step>
+    <replan-trigger>Не определён формат бандла Python/CUDA; недоступна gated-модель pyannote; противоречие контракта.</replan-trigger>
+    <checkpoint-requirement>Каждый шаг оставляет допущения, выполненные команды, доказательства и следующее действие.</checkpoint-requirement>
+  </ExecutionPolicy>
+</DevelopmentPlan>

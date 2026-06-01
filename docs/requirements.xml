@@ -1,0 +1,144 @@
+<RequirementsAnalysis VERSION="0.2.0">
+  <Project>
+    <name>WhisperAnnote</name>
+    <annotation>Десктопное приложение (Electron + React + Python FastAPI) для транскрибации и диаризации русскоязычных аудиозаписей совещаний. Только GPU (CUDA). Нативная обработка длинных файлов faster-whisper, диаризация pyannote, max-overlap сопоставление спикеров, автообработка папки.</annotation>
+    <keywords>whisperannote, транскрибация, диаризация, faster-whisper, pyannote, electron, react, fastapi, русский, совещания, gpu, cuda, vad, batch</keywords>
+  </Project>
+
+  <Actors>
+    <actor-User>Русскоговорящий пользователь: загружает записи, запускает транскрибацию, переименовывает спикеров, экспортирует результат.</actor-User>
+    <actor-System>Фоновый актор: file watcher и cron-планировщик, инициирующие автоматическую обработку файлов из папки.</actor-System>
+  </Actors>
+
+  <UseCases>
+    <UC-001>
+      <Actor>User</Actor>
+      <Action>Перетаскивает аудио/видео файл в окно и нажимает "Расшифровать"</Action>
+      <Goal>Получить транскрипт с метками спикеров и таймстемпами</Goal>
+      <Preconditions>FFmpeg доступен, CUDA-GPU доступен, модели скачаны, HF-токен задан</Preconditions>
+      <AcceptanceCriteria>Каждый сегмент имеет текст, спикера (max-overlap) и таймстемп; длинный файл (1+ ч) обрабатывается без обрывов слов на границах</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-TRANSCRIBE</RelatedFlows>
+    </UC-001>
+
+    <UC-002>
+      <Actor>User</Actor>
+      <Action>Просматривает результат с разделением по говорящим</Action>
+      <Goal>Понять, кто что сказал</Goal>
+      <Preconditions>Диаризация pyannote выполнена</Preconditions>
+      <AcceptanceCriteria>Сегменты сопоставлены спикерам методом максимального перекрытия; при отсутствии пересечения метка UNKNOWN</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-TRANSCRIBE</RelatedFlows>
+    </UC-002>
+
+    <UC-003>
+      <Actor>User</Actor>
+      <Action>Переименовывает SPEAKER_00 в реальное имя в результатах</Action>
+      <Goal>Сделать стенограмму читаемой для совещаний</Goal>
+      <Preconditions>Есть результат с метками спикеров</Preconditions>
+      <AcceptanceCriteria>Имя отражается во всех форматах экспорта (JSON/TXT/SRT/DOCX)</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-EXPORT</RelatedFlows>
+    </UC-003>
+
+    <UC-004>
+      <Actor>User</Actor>
+      <Action>Экспортирует результат в JSON/TXT/SRT/DOCX или копирует в буфер</Action>
+      <Goal>Использовать стенограмму вне приложения</Goal>
+      <Preconditions>Транскрибация завершена</Preconditions>
+      <AcceptanceCriteria>Файлы создаются в outputFolder; confidence = round(exp(avg_logprob), 3)</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-EXPORT</RelatedFlows>
+    </UC-004>
+
+    <UC-005>
+      <Actor>System</Actor>
+      <Action>Обнаруживает новый файл в отслеживаемой папке и ставит его в очередь</Action>
+      <Goal>Автоматическая обработка без участия пользователя</Goal>
+      <Preconditions>batchEnabled=true, watchFolder задан, файл стабилизирован (2 c)</Preconditions>
+      <AcceptanceCriteria>Новый файл обрабатывается; результаты/промежуточные файлы не вызывают повторную обработку (нет петли)</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-WATCH</RelatedFlows>
+    </UC-005>
+
+    <UC-006>
+      <Actor>System</Actor>
+      <Action>По cron-расписанию сканирует папку и ставит новые файлы в очередь</Action>
+      <Goal>Периодическая пакетная обработка</Goal>
+      <Preconditions>batchEnabled=true, валидное cron-выражение</Preconditions>
+      <AcceptanceCriteria>Файлы с совпадающими path+size+mtime пропускаются (дедупликация)</AcceptanceCriteria>
+      <Priority>low</Priority>
+      <RelatedFlows>DF-WATCH</RelatedFlows>
+    </UC-006>
+
+    <UC-007>
+      <Actor>User</Actor>
+      <Action>Проходит онбординг при первом запуске</Action>
+      <Goal>Подготовить приложение к работе</Goal>
+      <Preconditions>Первый запуск (firstRun=true)</Preconditions>
+      <AcceptanceCriteria>Проверены FFmpeg и CUDA; введён HF-токен; модели скачаны с индикацией прогресса; при отсутствии CUDA/FFmpeg выводится понятная ошибка</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-ONBOARD</RelatedFlows>
+    </UC-007>
+
+    <UC-008>
+      <Actor>User</Actor>
+      <Action>Отменяет активную транскрибацию</Action>
+      <Goal>Прекратить ненужную обработку</Goal>
+      <Preconditions>Задача выполняется</Preconditions>
+      <AcceptanceCriteria>Отмена кооперативная: срабатывает на границе стадии и между сегментами Whisper; temp-файлы удаляются</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-TRANSCRIBE</RelatedFlows>
+    </UC-008>
+
+    <UC-009>
+      <Actor>User</Actor>
+      <Action>Меняет настройки (модель, форматы, тема, язык, папки, HF-токен)</Action>
+      <Goal>Подстроить приложение под себя; настройки сохраняются между сессиями</Goal>
+      <Preconditions>Приложение запущено</Preconditions>
+      <AcceptanceCriteria>Настройки персистентны (electron-store); HF-токен — в защищённом сторе, не в открытом JSON</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-ONBOARD</RelatedFlows>
+    </UC-009>
+
+    <UC-010>
+      <Actor>System</Actor>
+      <Action>Backend принимает запросы только от доверенного renderer</Action>
+      <Goal>Не дать посторонним локальным процессам/страницам управлять обработкой и читать файлы</Goal>
+      <Preconditions>Backend запущен Main-процессом</Preconditions>
+      <AcceptanceCriteria>bind 127.0.0.1; CORS только origin Electron; обязателен секрет-токен; file_path валидируется на принадлежность разрешённым папкам</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-TRANSCRIBE, DF-WATCH</RelatedFlows>
+    </UC-010>
+  </UseCases>
+
+  <NonGoals>
+    <item-1>CPU-исполнение в v2 (только GPU/CUDA; CPU отложено).</item-1>
+    <item-2>Стриминговая транскрибация микрофона в реальном времени.</item-2>
+    <item-3>Облачная обработка и любая телеметрия — обработка 100% локальная.</item-3>
+    <item-4>Дообучение/файнтюн моделей (Whisper-large-v3 уже хорошо знает русский).</item-4>
+    <item-5>Сборки и поддержка macOS/Linux в v2.</item-5>
+    <item-6>Ручной чанкинг аудио (faster-whisper обрабатывает длинные файлы нативно).</item-6>
+  </NonGoals>
+
+  <Constraints>
+    <constraint-1>Платформа: Windows 10/11 x64 с обязательным NVIDIA GPU (CUDA, 6+ GB VRAM).</constraint-1>
+    <constraint-2>Модели pyannote gated: требуется HF-токен и принятие условий на hf.co.</constraint-2>
+    <constraint-3>FFmpeg — обязательная внешняя зависимость.</constraint-3>
+    <constraint-4>Секреты (HF-токен, секрет-токен backend) не должны попадать в логи.</constraint-4>
+    <constraint-5>Промежуточные файлы только в системном temp; результаты только в outputFolder.</constraint-5>
+  </Constraints>
+
+  <Risks>
+    <risk-1>Упаковка PyTorch+CUDA+cuDNN/cuBLAS в инсталлятор: размер ~3 GB и чувствительность к версиям — главный риск проекта.</risk-1>
+    <risk-2>Диаризация длинного файла — долгий шаг без гранулярного прогресса (нужен ProgressHook pyannote).</risk-2>
+    <risk-3>Перекрёстная речь — доминирующий источник ошибок; смягчается max-overlap, но не устраняется полностью.</risk-3>
+    <risk-4>Одновременные GPU-задачи → OOM; решается concurrency=1.</risk-4>
+  </Risks>
+
+  <OpenQuestions>
+    <question-1>Формат бандла Python: embedded Python + venv, PyInstaller или отдельная установка?</question-1>
+    <question-2>Хранение HF-токена: Electron safeStorage, OS keychain или зашифрованное поле electron-store?</question-2>
+    <question-3>Нужен ли отдельный этап Silero VAD перед диаризацией, если VAD уже встроен в faster-whisper?</question-3>
+  </OpenQuestions>
+</RequirementsAnalysis>
