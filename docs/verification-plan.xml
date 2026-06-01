@@ -1,0 +1,375 @@
+<VerificationPlan VERSION="0.2.0">
+  <GlobalPolicy>
+    <log-format>[Module][function][BLOCK_NAME] message</log-format>
+    <deterministic-first>true</deterministic-first>
+    <module-level-focus>Быстрые детерминированные проверки рядом с модулем (alignment, форматтеры, auth, валидация путей).</module-level-focus>
+    <wave-level-focus>Слитые поверхности: pipeline на коротком реальном WAV.</wave-level-focus>
+    <phase-level-focus>Интеграция и регресс: запуск backend, очередь, e2e ручной транскрибации.</phase-level-focus>
+    <autonomy-gate>Каждый shared-модуль до автономного исполнения должен иметь команды, сценарии, наблюдаемые доказательства и wave/phase follow-up.</autonomy-gate>
+    <redaction>Никогда не логировать HF-токен и секрет-токен backend.</redaction>
+    <ml-policy>Тяжёлые модели подменяются фейками на module-level; реальные pyannote/faster-whisper — только на wave/phase с малым сэмплом. Сеть в тестах запрещена.</ml-policy>
+  </GlobalPolicy>
+
+  <CriticalFlows>
+    <VF-TRANSCRIBE NAME="РучнаяТранскрибацияHappyPath" USE_CASES="UC-001,UC-002" DATA_FLOW="DF-TRANSCRIBE" PRIORITY="high">
+      <scenario>Пользователь загружает короткий русский WAV, получает сегменты со спикерами и таймстемпами.</scenario>
+      <expected-outcome>Результат содержит непустые сегменты; у каждого speaker, start, end, text, confidence; WS присылает complete.</expected-outcome>
+      <required-signals>
+        <log-marker>[Pipeline][run][BLOCK_RUN_PIPELINE]</log-marker>
+        <trace-sequence>BLOCK_EXTRACT_WAV -> BLOCK_RUN_PIPELINE(diarize) -> BLOCK_ITER_SEGMENTS -> align -> format -> complete</trace-sequence>
+      </required-signals>
+    </VF-TRANSCRIBE>
+
+    <VF-LONGFILE NAME="ДлинныйФайлБезЧанкинга" USE_CASES="UC-001" DATA_FLOW="DF-TRANSCRIBE" PRIORITY="high">
+      <scenario>Файл длительностью 60+ минут обрабатывается одним нативным проходом faster-whisper.</scenario>
+      <expected-outcome>Нет ffmpeg-нарезки на 300-сек чанки; на границах нет обрывов слов/дублей; память стабильна.</expected-outcome>
+      <required-signals>
+        <log-marker>[Transcribe][transcribe][BLOCK_ITER_SEGMENTS]</log-marker>
+        <trace-assertion>Не должно быть вызовов извлечения под-WAV по чанкам.</trace-assertion>
+      </required-signals>
+    </VF-LONGFILE>
+
+    <VF-SECURITY NAME="БезопасностьBackend" USE_CASES="UC-010" DATA_FLOW="DF-TRANSCRIBE" PRIORITY="high">
+      <scenario>Запрос без секрет-токена или с file_path вне разрешённых папок.</scenario>
+      <expected-outcome>Запрос без токена -> 401; file_path вне allowed_roots -> 400; CORS отклоняет посторонний origin.</expected-outcome>
+      <required-signals>
+        <log-marker>[Auth][require_token][BLOCK_VERIFY_TOKEN]</log-marker>
+        <trace-assertion>Путь вне allowed_roots не доходит до M-PIPELINE.</trace-assertion>
+      </required-signals>
+    </VF-SECURITY>
+
+    <VF-WATCH-NOLOOP NAME="АвтообработкаБезПетли" USE_CASES="UC-005" DATA_FLOW="DF-WATCH" PRIORITY="high">
+      <scenario>Один новый файл появляется в watchFolder; приложение его обрабатывает.</scenario>
+      <expected-outcome>Файл обработан ровно один раз; результаты и промежуточные файлы не ставятся в очередь повторно.</expected-outcome>
+      <required-signals>
+        <log-marker>[Watcher][onAdd][BLOCK_STABILIZE_FILE]</log-marker>
+        <trace-assertion>В watchFolder не появляется промежуточный MP3/WAV.</trace-assertion>
+      </required-signals>
+    </VF-WATCH-NOLOOP>
+
+    <VF-CANCEL NAME="КооперативнаяОтмена" USE_CASES="UC-008" DATA_FLOW="DF-TRANSCRIBE" PRIORITY="medium">
+      <scenario>Пользователь отменяет активную транскрибацию.</scenario>
+      <expected-outcome>Цикл по сегментам прерывается на ближайшей границе; temp-файлы удаляются; статус cancelled.</expected-outcome>
+      <required-signals>
+        <log-marker>[Transcribe][transcribe][BLOCK_ITER_SEGMENTS]</log-marker>
+        <trace-assertion>После отмены не выполняется format и не остаётся temp-файлов.</trace-assertion>
+      </required-signals>
+    </VF-CANCEL>
+
+    <VF-GPU-SERIAL NAME="ОдинGpuJob" USE_CASES="UC-005" DATA_FLOW="DF-WATCH" PRIORITY="high">
+      <scenario>В очередь поступает несколько файлов одновременно.</scenario>
+      <expected-outcome>В любой момент processing in {0,1}; задачи не выполняются параллельно на GPU.</expected-outcome>
+      <required-signals>
+        <log-marker>[Queue][processNext][BLOCK_PROCESS_NEXT]</log-marker>
+        <trace-assertion>Нет перекрытия двух BLOCK_RUN_PIPELINE по времени.</trace-assertion>
+      </required-signals>
+    </VF-GPU-SERIAL>
+
+    <VF-ONBOARD-NOCUDA NAME="ОнбордингБезCuda" USE_CASES="UC-007" DATA_FLOW="DF-ONBOARD" PRIORITY="high">
+      <scenario>На машине нет доступного CUDA-GPU.</scenario>
+      <expected-outcome>health status=error с понятным сообщением; обработка не стартует; CPU не используется.</expected-outcome>
+      <required-signals>
+        <log-marker>[Server][lifespan][BLOCK_LIFESPAN_INIT]</log-marker>
+      </required-signals>
+    </VF-ONBOARD-NOCUDA>
+  </CriticalFlows>
+
+  <ModuleVerification>
+    <V-M-AUTH MODULE="M-AUTH" PRIORITY="high">
+      <test-files><file>backend/tests/test_auth.py</file></test-files>
+      <module-checks>
+        <check-1>pytest backend/tests/test_auth.py</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Валидный Bearer-токен пропускается.</scenario-1>
+        <scenario-2 kind="failure">Отсутствующий/неверный токен -> 401.</scenario-2>
+        <scenario-3 kind="failure">Посторонний Origin отклоняется CORS.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[Auth][require_token][BLOCK_VERIFY_TOKEN]</marker-1></required-log-markers>
+      <wave-follow-up>Интеграция: реальный запрос renderer to backend проходит, чужой — нет.</wave-follow-up>
+    </V-M-AUTH>
+
+    <V-M-FFMPEG MODULE="M-FFMPEG" PRIORITY="high">
+      <test-files><file>backend/tests/test_ffmpeg.py</file></test-files>
+      <module-checks>
+        <check-1>pytest backend/tests/test_ffmpeg.py</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">WAV извлекается в системный temp (16k mono PCM).</scenario-1>
+        <scenario-2 kind="failure">Отсутствие FFmpeg -> FFMPEG_NOT_FOUND.</scenario-2>
+        <scenario-3 kind="failure">file_path вне allowed_roots -> PATH_NOT_ALLOWED.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[Ffmpeg][extract_wav][BLOCK_EXTRACT_WAV]</marker-1></required-log-markers>
+      <required-trace-assertions><assertion-1>После обработки temp-файлы удалены; рядом с источником ничего не создано.</assertion-1></required-trace-assertions>
+    </V-M-FFMPEG>
+
+    <V-M-TRANSCRIBE MODULE="M-TRANSCRIBE" PRIORITY="high">
+      <test-files><file>backend/tests/test_transcribe.py</file></test-files>
+      <module-checks>
+        <check-1>pytest backend/tests/test_transcribe.py</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Генератор сегментов перебирается; confidence=exp(avg_logprob).</scenario-1>
+        <scenario-2 kind="success">cancel_event прерывает цикл между сегментами.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Transcribe][transcribe][BLOCK_ITER_SEGMENTS]</marker-1></required-log-markers>
+      <required-trace-assertions><assertion-1>Нет вызова ffmpeg-нарезки на чанки.</assertion-1></required-trace-assertions>
+      <wave-follow-up>Прогон на коротком реальном русском WAV (модель — малый сэмпл).</wave-follow-up>
+    </V-M-TRANSCRIBE>
+
+    <V-M-ALIGN MODULE="M-ALIGN" PRIORITY="high">
+      <test-files><file>backend/tests/test_align.py</file></test-files>
+      <module-checks>
+        <check-1>pytest backend/tests/test_align.py</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Сегмент назначается спикеру с максимальным перекрытием.</scenario-1>
+        <scenario-2 kind="success">При нескольких пересечениях выбирается наибольшее по длительности.</scenario-2>
+        <scenario-3 kind="failure">Нет пересечений -> метка UNKNOWN.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[Align][align][BLOCK_ASSIGN_SPEAKER]</marker-1></required-log-markers>
+    </V-M-ALIGN>
+
+    <V-M-FORMAT MODULE="M-FORMAT" PRIORITY="medium">
+      <test-files><file>backend/tests/test_formatters.py</file></test-files>
+      <module-checks>
+        <check-1>pytest backend/tests/test_formatters.py</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">JSON/TXT/SRT/DOCX создаются в outputFolder.</scenario-1>
+        <scenario-2 kind="success">speaker_names применяются во всех форматах (нет SPEAKER_00 при заданном имени).</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Format][to_docx][BLOCK_WRITE_DOCX]</marker-1></required-log-markers>
+    </V-M-FORMAT>
+
+    <V-M-PIPELINE MODULE="M-PIPELINE" PRIORITY="high">
+      <test-files><file>backend/tests/test_pipeline_integration.py</file></test-files>
+      <module-checks>
+        <check-1>pytest backend/tests/test_pipeline_integration.py</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Полный конвейер на коротком WAV даёт согласованный результат.</scenario-1>
+        <scenario-2 kind="failure">Ошибка на любом шаге -> temp очищен, статус error.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Pipeline][run][BLOCK_RUN_PIPELINE]</marker-1></required-log-markers>
+      <required-trace-assertions><assertion-1>finally удаляет все temp-файлы при успехе, ошибке и отмене.</assertion-1></required-trace-assertions>
+      <phase-follow-up>e2e: запуск backend и ручная транскрибация из renderer.</phase-follow-up>
+    </V-M-PIPELINE>
+
+    <V-M-QUEUE MODULE="M-QUEUE" PRIORITY="high">
+      <test-files><file>backend/tests/test_queue.py</file></test-files>
+      <module-checks>
+        <check-1>pytest backend/tests/test_queue.py</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Несколько задач выполняются строго последовательно.</scenario-1>
+        <scenario-2 kind="success">Отмена задачи в очереди и в работе.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Queue][processNext][BLOCK_PROCESS_NEXT]</marker-1></required-log-markers>
+      <required-trace-assertions><assertion-1>processing никогда не превышает 1.</assertion-1></required-trace-assertions>
+    </V-M-QUEUE>
+
+    <V-M-MODELS MODULE="M-MODELS" PRIORITY="medium">
+      <test-files><file>backend/tests/test_models_registry.py</file></test-files>
+      <module-checks><check-1>pytest backend/tests/test_models_registry.py</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">list_models возвращает только CT2 faster-whisper.</scenario-1>
+        <scenario-2 kind="failure">Неверный HF-токен -> HF_AUTH_FAILED с инструкцией.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Models][download_model][BLOCK_DOWNLOAD]</marker-1></required-log-markers>
+    </V-M-MODELS>
+
+    <V-M-SERVER MODULE="M-SERVER" PRIORITY="high">
+      <test-files><file>backend/tests/test_server.py</file></test-files>
+      <module-checks><check-1>pytest backend/tests/test_server.py</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">/api/health возвращает cuda_available и статус моделей.</scenario-1>
+        <scenario-2 kind="failure">cuda_available=false -> status=error, обработка не стартует.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Server][lifespan][BLOCK_LIFESPAN_INIT]</marker-1></required-log-markers>
+    </V-M-SERVER>
+
+    <V-M-WATCHER MODULE="M-WATCHER" PRIORITY="high">
+      <test-files><file>tests/main/file-watcher.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/main/file-watcher.test.ts</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Новый файл добавляется после стабилизации 2 c.</scenario-1>
+        <scenario-2 kind="success">Временные/сгенерированные файлы игнорируются.</scenario-2>
+        <scenario-3 kind="success">Дубликат по path+size+mtime пропускается.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[Watcher][onAdd][BLOCK_STABILIZE_FILE]</marker-1></required-log-markers>
+    </V-M-WATCHER>
+
+    <V-M-PY-MANAGER MODULE="M-PY-MANAGER" PRIORITY="high">
+      <test-files><file>tests/main/python-manager.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/main/python-manager.test.ts</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Подбор свободного порта при занятом дефолтном.</scenario-1>
+        <scenario-2 kind="success">Токен и HF-токен передаются через env, не через argv.</scenario-2>
+        <scenario-3 kind="failure">Падение backend -> рестарт до 3 попыток.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[PyManager][start][BLOCK_SPAWN_BACKEND]</marker-1></required-log-markers>
+    </V-M-PY-MANAGER>
+
+    <V-M-API-CLIENT MODULE="M-API-CLIENT" PRIORITY="medium">
+      <test-files><file>tests/frontend/api.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/api.test.ts</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Каждый запрос несёт Authorization: Bearer.</scenario-1>
+        <scenario-2 kind="success">Обрыв WS -> reconnect и resubscribe по task_id.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[ApiClient][useWebSocket][BLOCK_WS_RECONNECT]</marker-1></required-log-markers>
+    </V-M-API-CLIENT>
+
+    <V-M-ONBOARDING MODULE="M-ONBOARDING" PRIORITY="medium">
+      <test-files><file>tests/frontend/onboarding.test.tsx</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/onboarding.test.tsx</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">При отсутствии CUDA/FFmpeg показывается понятная ошибка.</scenario-1>
+        <scenario-2 kind="success">Прогресс загрузки моделей отображается из WS.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Onboarding][checkHealth][BLOCK_CHECK_ENV]</marker-1></required-log-markers>
+    </V-M-ONBOARDING>
+
+    <!-- Заглушки: базовый module-check на каждый модуль. Детализируются ($grace-verification)
+         сценариями, log-markers и trace-assertions перед автономным исполнением фазы. -->
+
+    <V-M-BACKEND-CONFIG MODULE="M-BACKEND-CONFIG" PRIORITY="medium">
+      <test-files><file>backend/tests/test_config.py</file></test-files>
+      <module-checks><check-1>pytest backend/tests/test_config.py</check-1></module-checks>
+      <scenarios><scenario-1 kind="failure">Отсутствие секрет-токена в env -> MISSING_SECRET_TOKEN.</scenario-1></scenarios>
+    </V-M-BACKEND-CONFIG>
+
+    <V-M-SCHEMAS MODULE="M-SCHEMAS" PRIORITY="low">
+      <test-files><file>backend/tests/test_models.py</file></test-files>
+      <module-checks><check-1>pytest backend/tests/test_models.py</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Сериализация/десериализация моделей стабильна.</scenario-1></scenarios>
+    </V-M-SCHEMAS>
+
+    <V-M-PROGRESS MODULE="M-PROGRESS" PRIORITY="medium">
+      <test-files><file>backend/tests/test_progress.py</file></test-files>
+      <module-checks><check-1>pytest backend/tests/test_progress.py</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">send_progress доставляет сообщение подписчику task_id.</scenario-1></scenarios>
+    </V-M-PROGRESS>
+
+    <V-M-DIARIZE MODULE="M-DIARIZE" PRIORITY="high">
+      <test-files><file>backend/tests/test_diarize.py</file></test-files>
+      <module-checks><check-1>pytest backend/tests/test_diarize.py</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Возвращает speaker-сегменты; на CUDA. Реальная модель — только wave/phase.</scenario-1></scenarios>
+    </V-M-DIARIZE>
+
+    <V-M-CONFIG-STORE MODULE="M-CONFIG-STORE" PRIORITY="high">
+      <test-files><file>tests/main/config-store.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/main/config-store.test.ts</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">HF-токен не сохраняется в открытом JSON; доступен через secure store.</scenario-1></scenarios>
+    </V-M-CONFIG-STORE>
+
+    <V-M-SCHEDULER MODULE="M-SCHEDULER" PRIORITY="low">
+      <test-files><file>tests/main/scheduler.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/main/scheduler.test.ts</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Сканирование по cron ставит только новые файлы.</scenario-1></scenarios>
+    </V-M-SCHEDULER>
+
+    <V-M-IPC MODULE="M-IPC" PRIORITY="medium">
+      <test-files><file>tests/main/ipc.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/main/ipc.test.ts</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Разрешены только каналы из белого списка.</scenario-1></scenarios>
+    </V-M-IPC>
+
+    <V-M-PRELOAD MODULE="M-PRELOAD" PRIORITY="medium">
+      <test-files><file>tests/main/preload.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/main/preload.test.ts</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">contextBridge экспонирует только типобезопасный белый список.</scenario-1></scenarios>
+    </V-M-PRELOAD>
+
+    <V-M-MAIN MODULE="M-MAIN" PRIORITY="medium">
+      <test-files><file>tests/main/main.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/main/main.test.ts</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Старт поднимает окно и менеджеры; shutdown останавливает backend.</scenario-1></scenarios>
+    </V-M-MAIN>
+
+    <V-M-UI MODULE="M-UI" PRIORITY="low">
+      <test-files><file>tests/frontend/ui.test.tsx</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/ui.test.tsx</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Примитивы рендерятся и проходят smoke-проверки.</scenario-1></scenarios>
+    </V-M-UI>
+
+    <V-M-I18N MODULE="M-I18N" PRIORITY="low">
+      <test-files><file>tests/frontend/i18n.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/i18n.test.ts</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">ru — основной; en — fallback; нет отсутствующих ключей.</scenario-1></scenarios>
+    </V-M-I18N>
+
+    <V-M-STORES MODULE="M-STORES" PRIORITY="medium">
+      <test-files><file>tests/frontend/stores.test.ts</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/stores.test.ts</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">speakerNames обновляются и читаются корректно.</scenario-1></scenarios>
+    </V-M-STORES>
+
+    <V-M-APP-SHELL MODULE="M-APP-SHELL" PRIORITY="low">
+      <test-files><file>tests/frontend/app-shell.test.tsx</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/app-shell.test.tsx</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Переключение тёмной/светлой темы без перезагрузки.</scenario-1></scenarios>
+    </V-M-APP-SHELL>
+
+    <V-M-UPLOAD MODULE="M-UPLOAD" PRIORITY="medium">
+      <test-files><file>tests/frontend/upload.test.tsx</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/upload.test.tsx</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Drag-and-drop и file picker создают задачу.</scenario-1></scenarios>
+    </V-M-UPLOAD>
+
+    <V-M-RESULTS MODULE="M-RESULTS" PRIORITY="medium">
+      <test-files><file>tests/frontend/results.test.tsx</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/results.test.tsx</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Список виртуализирован; переименование спикера отражается в экспорте.</scenario-1></scenarios>
+    </V-M-RESULTS>
+
+    <V-M-BATCH MODULE="M-BATCH" PRIORITY="low">
+      <test-files><file>tests/frontend/batch.test.tsx</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/batch.test.tsx</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Очередь и история отображаются; удаление из очереди работает.</scenario-1></scenarios>
+    </V-M-BATCH>
+
+    <V-M-SETTINGS MODULE="M-SETTINGS" PRIORITY="low">
+      <test-files><file>tests/frontend/settings.test.tsx</file></test-files>
+      <module-checks><check-1>npm test -- tests/frontend/settings.test.tsx</check-1></module-checks>
+      <scenarios><scenario-1 kind="success">Настройки персистентны; устройство показано как GPU (фиксировано).</scenario-1></scenarios>
+    </V-M-SETTINGS>
+  </ModuleVerification>
+
+  <PhaseGates>
+    <Gate-Phase-2 PHASE="Phase-2">
+      <goal>Backend-ядро: детерминированные module-проверки и pipeline на коротком WAV; безопасность активна.</goal>
+      <commands>
+        <command-1>pytest backend/tests</command-1>
+      </commands>
+      <required-evidence>
+        <evidence-1>VF-SECURITY, V-M-ALIGN, V-M-FFMPEG, V-M-QUEUE зелёные.</evidence-1>
+        <evidence-2>pipeline на коротком WAV даёт сегменты со спикерами; temp очищен.</evidence-2>
+      </required-evidence>
+    </Gate-Phase-2>
+    <Gate-Phase-4 PHASE="Phase-4">
+      <goal>Ручная транскрибация e2e работает из UI.</goal>
+      <commands>
+        <command-1>pytest &amp;&amp; npm test</command-1>
+      </commands>
+      <required-evidence>
+        <evidence-1>VF-TRANSCRIBE проходит из renderer; WS reconnect восстанавливает прогресс.</evidence-1>
+      </required-evidence>
+    </Gate-Phase-4>
+    <Gate-Phase-8 PHASE="Phase-8">
+      <goal>Инсталлятор запускается на чистой Windows-машине с NVIDIA GPU без dev-окружения.</goal>
+      <required-evidence>
+        <evidence-1>Первый запуск: онбординг, загрузка моделей, успешная транскрибация.</evidence-1>
+        <evidence-2>VF-ONBOARD-NOCUDA: на машине без CUDA — понятная ошибка, не падение.</evidence-2>
+      </required-evidence>
+    </Gate-Phase-8>
+  </PhaseGates>
+
+  <FailurePackets>
+    <packet-template>
+      <expected-fields>scenario, expected-evidence, observed-evidence, first-divergent-block, next-action</expected-fields>
+      <note>Канонические формы пакетов — в docs/operational-packets.xml.</note>
+    </packet-template>
+  </FailurePackets>
+</VerificationPlan>

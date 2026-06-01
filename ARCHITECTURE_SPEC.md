@@ -50,8 +50,8 @@
 | BR-03 | Ручная загрузка файлов через drag-and-drop и file picker | P0 |
 | BR-04 | Автообработка файлов из указанной папки | P1 |
 | BR-05 | Конвертация любых аудио/видео форматов в MP3 перед обработкой | P0 |
-| BR-06 | Выбор модели Whisper (medium/large-v3/large-v3-turbo) | P0 |
-| BR-07 | Выбор устройства выполнения: GPU (CUDA) или CPU | P0 |
+| BR-06 | Выбор модели Whisper (faster-whisper CT2: medium/large-v3/large-v3-turbo) | P0 |
+| BR-07 | Устройство выполнения: GPU (CUDA). CPU в v2 не поддерживается (отложено) | P0 |
 | BR-08 | Прогресс обработки в реальном времени | P0 |
 | BR-09 | Экспорт результатов: TXT, SRT, JSON, DOCX | P1 |
 | BR-10 | Копирование транскрипта в буфер обмена | P1 |
@@ -60,6 +60,8 @@
 | BR-13 | Настройка cron-расписания для автообработки папки | P2 |
 | BR-14 | Сохранение прогресса при сбое (resume) | P2 |
 | BR-15 | Отображение истории обработанных файлов | P1 |
+| BR-16 | Переименование спикеров в результатах с сохранением в экспорт | P1 |
+| BR-17 | Безопасность локального backend (bind 127.0.0.1 + секрет-токен + CORS allowlist) | P0 |
 
 ---
 
@@ -132,7 +134,7 @@
 | **React-компоненты shadcn/ui** | Whisperer_v1 / Transcription Studio Interface | 48 врапперов shadcn/ui + кастомные компоненты (FileUpload, AdvancedSettings, ResultsZone, Header, FloatingControls) |
 | **Tailwind-конфигурация и тема** | Whisperer_v1 | tailwind.config.js, index.css с кастомными переменными |
 | **Локализация `locales/ru/`** | Whisperer_v1 | Готовые русские переводы UI-строк |
-| **Система i18n** | Whisperer_v1 | Адаптировать `i18n.py` → TypeScript (react-i18next или next-intl) |
+| **Система i18n** | Whisperer_v1 | Адаптировать `i18n.py` → TypeScript (react-i18next) |
 | **Форматы вывода** | Whisperer_v1 + Whisperer_GUI | JSON, TXT, SRT, VTT, CSV — логика форматирования из archive/api_server_original.py и worker.py |
 | **VAD (Silero)** | WhisperLiveKit | `silero_vad_iterator.py` — может пригодиться для сегментации тишины в будущем |
 | **Датаклассы** | WhisperLiveKit | `timed_objects.py` — ASRToken, Sentence, Transcript, SpeakerSegment |
@@ -174,9 +176,19 @@
 | `openai/whisper-medium` | 769M | 10-14% | ★★★☆ | ~4 GB | Компромисс |
 
 **Рекомендация: `faster-whisper-large-v3` (CTranslate2 backend)**
-- Качество как у large-v3, но через CTranslate2 — в 4 раза быстрее на GPU, быстрее и меньше памяти на CPU
+- Качество как у large-v3, но через CTranslate2 — в ~4 раза быстрее на GPU и меньше памяти
 - Интегрируется через библиотеку `faster-whisper` (Python package)
 - Идеально для десктопа: меньше памяти, выше скорость при том же качестве
+
+> **Решение для v2:** поставляются **только CTranslate2-сборки faster-whisper** (`large-v3`,
+> `large-v3-turbo`, `medium`) и **только GPU (CUDA)**. Модели семейства `openai/whisper`
+> (PyTorch-граф) не подключаются, чтобы не тянуть второй ML-бэкенд и второй кодпас. Сравнительная
+> таблица выше остаётся справочной.
+>
+> **Важно про API:** у faster-whisper API **отличается** от openai-whisper. `model.transcribe()`
+> возвращает кортеж `(segments, info)`, где `segments` — генератор объектов `Segment` (а не
+> `result["segments"]` как в openai-whisper). Длинные файлы обрабатываются нативно — ручной
+> чанкинг не нужен.
 
 **Дообучение:** НЕ ТРЕБУЕТСЯ. Whisper-large-v3 уже отлично знает русский язык. WER 5-8% на чистой речи. Основные источники ошибок:
 - Перекрёстная речь (overlapping speech) — доминирует над ошибками ASR
@@ -201,6 +213,11 @@ LoRA-файнтюнинг (~10M параметров) на RTX 3090/4090 сто�
 | `silero-vad` | Лёгкая, через torch.hub. От WhisperLiveKit |
 
 Используется для предварительной сегментации тишины/речи перед транскрибацией (улучшает качество диаризации на длинных записях).
+
+> **Уточнение:** Silero VAD **уже встроен** в faster-whisper и включается параметром
+> `vad_filter=True`. Отдельный порт `silero_vad_iterator.py` из WhisperLiveKit для базового
+> сценария **не нужен** — мы используем встроенный VAD faster-whisper. Внешний Silero остаётся
+> опцией только для отдельной пред-сегментации перед диаризацией (этап 2+, не блокирующее).
 
 ---
 
@@ -231,7 +248,7 @@ LoRA-файнтюнинг (~10M параметров) на RTX 3090/4090 сто�
 │  ┌──────────────────────┴─────────────────────────────┐  │
 │  │              App Config (electron-store)            │  │
 │  │  - Выбранная модель                                 │  │
-│  │  - Устройство (GPU/CPU)                             │  │
+│  │  - Устройство: GPU (CUDA), фиксировано              │  │
 │  │  - Путь к входной папке                             │  │
 │  │  - Путь к выходной папке                            │  │
 │  │  - Cron-расписание                                  │  │
@@ -298,12 +315,12 @@ LoRA-файнтюнинг (~10M параметров) на RTX 3090/4090 сто�
 │  │  [3] Диаризация (PyAnnote)                         │   │
 │  │    │  Полный аудиофайл → speaker segments           │   │
 │  │    ▼                                               │   │
-│  │  [4] Транскрибация (faster-whisper / whisper)      │   │
-│  │    │  Чанки по 300 сек → текст + сегменты          │   │
+│  │  [4] Транскрибация (faster-whisper, нативно)      │   │
+│  │    │  Весь файл, language=ru, vad_filter=True      │   │
 │  │    ▼                                               │   │
 │  │  [5] Alignment                                      │   │
 │  │    │  Сопоставление сегментов со спикерами          │   │
-│  │    │  (средняя точка таймстемпа → speaker)          │   │
+│  │    │  (max-overlap → speaker, fallback UNKNOWN)    │   │
 │  │    ▼                                               │   │
 │  │  [6] Вывод                                         │   │
 │  │    Выход: {name}.json, {name}.txt,                 │   │
@@ -311,8 +328,8 @@ LoRA-файнтюнинг (~10M параметров) на RTX 3090/4090 сто�
 │  └──────────────────────────────────────────────────┘   │
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐   │
-│  │  Batch Queue (asyncio.Queue)                       │   │
-│  │  - FIFO очередь файлов                             │   │
+│  │  Batch Queue (asyncio.Queue, concurrency=1)        │   │
+│  │  - FIFO; один GPU-job одновременно                 │   │
 │  │  - Прогресс per-file через WebSocket               │   │
 │  │  - Обработка ошибок                                │   │
 │  │  - Отмена задачи                                   │   │
@@ -365,6 +382,7 @@ LoRA-файнтюнинг (~10M параметров) на RTX 3090/4090 сто�
 | Lucide React | latest | Иконки |
 | react-i18next | latest | Интернационализация |
 | zustand | latest | Управление состоянием (лёгкая альтернатива Redux) |
+| @tanstack/react-virtual | latest | Виртуализация длинного списка сегментов |
 | react-hook-form | latest | Формы (настройки) |
 | @tanstack/react-query | latest | Кэширование и fetching |
 | electron-store | latest | Персистентная конфигурация |
@@ -382,17 +400,18 @@ LoRA-файнтюнинг (~10M параметров) на RTX 3090/4090 сто�
 | uvicorn | latest | ASGI-сервер |
 | faster-whisper | latest | Транскрибация (CTranslate2) |
 | pyannote.audio | 3.1+ | Диаризация спикеров |
-| torch + torchaudio | 2.1+ | PyTorch runtime |
+| torch + torchaudio | 2.1+ | PyTorch runtime (CUDA build) |
 | huggingface-hub | 0.23+ | Загрузка моделей |
 | pydantic | latest | Валидация данных |
 | python-dotenv | latest | .env-переменные |
+| python-docx | latest | Экспорт результатов в DOCX |
 
 ### 8.3 Системные зависимости
 
 | Зависимость | Назначение |
 |-------------|-----------|
 | FFmpeg | Конвертация аудио/видео форматов |
-| CUDA (опционально) | GPU-ускорение |
+| CUDA + cuDNN/cuBLAS (обязательно) | GPU-исполнение faster-whisper и pyannote |
 
 ---
 
@@ -405,8 +424,15 @@ WhisperAnnote/
 ├── electron-builder.yml            ← Конфигурация сборки для Windows
 ├── .env.example                    ← HF_TOKEN=your_token_here
 ├── .gitignore
-├── AGENTS.md                       ← Инструкции для AI-агентов
-├── kilo.json                       ← Конфигурация Kilo
+├── AGENTS.md                       ← Протокол GRACE + инструкции для агентов
+│
+├── docs/                           ← GRACE-артефакты (XML, навигация для агентов)
+│   ├── requirements.xml
+│   ├── technology.xml
+│   ├── development-plan.xml
+│   ├── verification-plan.xml
+│   ├── knowledge-graph.xml
+│   └── operational-packets.xml
 │
 ├── electron/                       ← Electron Main Process
 │   ├── main.ts                     ← Точка входа Electron
@@ -454,17 +480,21 @@ WhisperAnnote/
 │   │   │   └── QuickSettings.tsx   ← Быстрые настройки перед запуском
 │   │   ├── transcription/
 │   │   │   ├── ProgressCard.tsx    ← Карточка прогресса
-│   │   │   ├── SegmentList.tsx     ← Список сегментов с speaker-метками
-│   │   │   ├── SpeakerLegend.tsx   ← Легенда спикеров
+│   │   │   ├── SegmentList.tsx     ← Виртуализированный список сегментов
+│   │   │   ├── SpeakerLegend.tsx   ← Легенда + переименование спикеров
 │   │   │   └── ExportPanel.tsx     ← Экспорт результатов
 │   │   ├── batch/
 │   │   │   ├── FolderConfig.tsx    ← Настройка папки + cron
 │   │   │   ├── QueueList.tsx       ← Очередь файлов
 │   │   │   └── HistoryTable.tsx    ← История обработок
 │   │   ├── settings/
-│   │   │   ├── ModelSettings.tsx   ← Выбор модели + устройство
+│   │   │   ├── ModelSettings.tsx   ← Выбор модели (GPU фиксирован)
 │   │   │   ├── OutputSettings.tsx  ← Настройки вывода
+│   │   │   ├── HfTokenSettings.tsx ← HuggingFace токен (диаризация)
 │   │   │   └── GeneralSettings.tsx ← Язык, тема, порт
+│   │   ├── onboarding/
+│   │   │   ├── FirstRunWizard.tsx  ← Проверка FFmpeg/CUDA, ввод токена
+│   │   │   └── ModelDownload.tsx   ← Загрузка моделей с прогрессом
 │   │   └── ui/                     ← shadcn/ui компоненты
 │   │       ├── button.tsx
 │   │       ├── card.tsx
@@ -490,10 +520,12 @@ WhisperAnnote/
 ├── backend/                        ← Python Backend
 │   ├── server.py                   ← FastAPI сервер (точка входа)
 │   ├── pipeline.py                 ← Пайплайн (адаптированный worker.py)
-│   ├── queue_manager.py            ← Batch очередь
+│   ├── formatters.py               ← Экспорт JSON/TXT/SRT/DOCX
+│   ├── queue_manager.py            ← Batch очередь (concurrency=1)
 │   ├── models.py                   ← Pydantic модели
 │   ├── websocket_manager.py        ← WebSocket-комнаты по task_id
-│   ├── utils.py                    ← Утилиты (ffmpeg, валидация)
+│   ├── auth.py                     ← Секрет-токен + CORS allowlist
+│   ├── utils.py                    ← Утилиты (ffmpeg, temp, валидация путей)
 │   ├── config.py                   ← Конфигурация бэкенда
 │   └── requirements.txt            ← Python зависимости
 │
@@ -528,8 +560,10 @@ WhisperAnnote/
 #### `python-manager.ts` — управление Python-процессом
 ```
 - Находит Python (python3/python) в PATH или bundled
+- Подбирает свободный порт, если {PORT} занят, и сообщает его renderer
+- Генерирует секрет-токен; передаёт его и HF-токен в backend через env (не через argv)
 - spawn: python -m uvicorn backend.server:app --host 127.0.0.1 --port {PORT}
-- Health check: периодический GET /api/health
+- Health check: периодический GET /api/health (с токеном)
 - Перезапуск при падении (до 3 попыток)
 - Захват stdout/stderr → лог-файл + отправка в renderer
 - Graceful shutdown (SIGTERM → SIGKILL через 5 сек)
@@ -537,7 +571,9 @@ WhisperAnnote/
 
 #### `file-watcher.ts` — отслеживание папки
 ```
-- chokidar.watch(watchFolder, { ignored: /\.tmp$/ })
+- chokidar.watch(watchFolder, { ignored: [/\.tmp$/, /\.part$/, /\.crdownload$/] })
+- Игнорирует файлы, сгенерированные приложением (результаты экспорта, промежуточные MP3/WAV);
+  промежуточные файлы вообще не пишутся в watchFolder (только в системный temp) → нет петли
 - Событие 'add' → fileQueue.add(filePath)
 - Событие 'change' → игнорируем
 - При добавлении нового файла: отправка IPC-события в renderer
@@ -570,7 +606,7 @@ WhisperAnnote/
 - HistoryTable: таблица обработанных файлов (имя, дата, длительность, статус, открыть результат)
 
 **Вкладка 3: Настройки**
-- ModelSettings: выбор модели (выпадающий список), устройство GPU/CPU
+- ModelSettings: выбор модели (выпадающий список); устройство — GPU (CUDA), фиксировано в v2
 - OutputSettings: форматы вывода (JSON/TXT/SRT/DOCX), путь к выходной папке
 - GeneralSettings: язык интерфейса, тема, порт бэкенда
 
@@ -581,13 +617,18 @@ WhisperAnnote/
 
 ### 10.3 Python Backend — эндпоинты
 
+> **Безопасность (все эндпоинты):** сервер слушает только `127.0.0.1`; CORS разрешён лишь для
+> origin Electron-рендерера; каждый HTTP/WS-запрос обязан нести заголовок `Authorization:
+> Bearer <secret>` с токеном, который Main-процесс генерирует при запуске и передаёт и в backend
+> (env), и в renderer (через IPC). Запросы без валидного токена → `401`.
+
 #### `POST /api/transcribe`
 ```
 Request (multipart/form-data):
   file: binary (аудио/видео файл)
   model: string (default: "faster-whisper-large-v3")
-  device: "cuda" | "cpu" (default: "cuda")
-  language: string (default: "ru")
+  language: string (default: "ru")        // device всегда CUDA (GPU), не передаётся
+  num_speakers: int | null (опц. подсказка диаризации)
   output_formats: string[] (default: ["json", "txt", "srt"])
 
 Response 202:
@@ -599,13 +640,15 @@ WebSocket /ws/progress/{task_id} стримит прогресс.
 #### `POST /api/queue`
 ```
 Request (JSON):
-  file_path: string (абсолютный путь к файлу)
+  file_path: string (абсолютный путь; валидируется на принадлежность
+             разрешённым папкам — watchFolder/явно выбранным)
   model: string
-  device: "cuda" | "cpu"
+  num_speakers: int | null
   output_formats: string[]
 
 Response 202:
   { task_id: uuid, status: "queued" }
+  // 400, если file_path вне разрешённых директорий
 ```
 
 #### `GET /api/queue/status`
@@ -622,10 +665,19 @@ Response: { success: true }
 #### `GET /api/models`
 ```
 Response:
-  { available: ["faster-whisper-large-v3", "faster-whisper-medium",
-                 "whisper-large-v3", "whisper-large-v3-turbo",
-                 "whisper-medium"],
-    downloaded: ["faster-whisper-large-v3"] }
+  { available: ["faster-whisper-large-v3",
+                 "faster-whisper-large-v3-turbo",
+                 "faster-whisper-medium"],
+    downloaded: ["faster-whisper-large-v3"],
+    current: "faster-whisper-large-v3" }
+```
+
+#### `POST /api/models/download`
+```
+Request (JSON): { model: string }
+Response 202:    { task_id: uuid }
+Прогресс загрузки транслируется через WS /ws/progress/{task_id}
+(type: "progress", percent, message). Используется онбордингом при первом запуске.
 ```
 
 #### `GET /api/health`
@@ -635,6 +687,9 @@ Response:
     cuda_available: true, cuda_devices: 1,
     whisper_ready: true, pyannote_ready: true,
     models_cached: ["faster-whisper-large-v3", "pyannote/speaker-diarization-3.1"] }
+
+Если cuda_available=false → status:"error" и понятное сообщение;
+обработка не запускается (CPU в v2 не поддерживается).
 ```
 
 #### `WS /ws/progress/{task_id}`
@@ -655,61 +710,60 @@ Response:
 Адаптирован из `Whisperer_GUI/worker.py`.
 
 ```
-Входной файл
-    │
-    ▼
-┌─────────────────────────────────────────────┐
-│ Шаг 1: Конвертация в MP3                    │
-│ ffmpeg -i input.ext -b:a 128k output.mp3   │
-│ (если вход уже MP3 — пропускаем)            │
-├─────────────────────────────────────────────┤
-│ Шаг 2: Извлечение WAV                       │
-│ ffmpeg -i file.mp3 -ar 16000 -ac 1          │
-│        -c:a pcm_s16le file.wav              │
-├─────────────────────────────────────────────┤
-│ Шаг 3: Диаризация                           │
-│ Pipeline.from_pretrained(                   │
-│   "pyannote/speaker-diarization-3.1")       │
-│ dia = pipeline({"audio": wav_path})          │
-│ spk_segments = [{start, end, speaker}]      │
-├─────────────────────────────────────────────┤
-│ Шаг 4: Чанкованная транскрибация            │
-│ CHUNK_SECONDS = 300                         │
-│ Для каждого чанка:                          │
-│   ffmpeg извлекает под-WAV                  │
-│   whisper_model.transcribe(chunk_wav,       │
-│     language="ru")                          │
-│   Сегменты: {start, end, text}              │
-│   Коррекция таймстемпов (offset чанка)      │
-├─────────────────────────────────────────────┤
-│ Шаг 5: Сопоставление спикеров               │
-│ def speaker_at(t):                          │
-│   for seg in spk_segments:                  │
-│     if seg.start <= t <= seg.end:           │
-│       return seg.speaker                    │
-│ Для каждого транскрибированного сегмента:   │
-│   midpoint = (seg.start + seg.end) / 2       │
-│   speaker = speaker_at(midpoint)            │
-├─────────────────────────────────────────────┤
-│ Шаг 6: Форматирование вывода                │
-│ JSON: [{speaker, start, end, text}]         │
-│ TXT:  [HH:MM:SS] SPEAKER: text              │
-│ SRT:  стандартный SubRip                    │
-│ DOCX: Word-документ с форматированием       │
-└─────────────────────────────────────────────┘
+Входной файл (любой формат)
+   │
+   ▼
+[1] Конвертация в MP3 (в системный temp)
+    ffmpeg -i input.ext -b:a 128k $TMP/out.mp3
+    (если вход уже MP3 — пропускаем)
+   │
+   ▼
+[2] Извлечение WAV (в системный temp)
+    ffmpeg -i $TMP/out.mp3 -ar 16000 -ac 1 -c:a pcm_s16le $TMP/out.wav
+   │
+   ▼
+[3] Диаризация (pyannote, весь файл)
+    pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1")
+    dia = pipeline({"audio": wav_path}, num_speakers=...)   # подсказка опциональна
+    spk_segments = [{start, end, speaker}]
+   │
+   ▼
+[4] Транскрибация (faster-whisper, нативно — БЕЗ ручного чанкинга)
+    segments, info = model.transcribe(wav, language="ru", vad_filter=True)
+    for seg in segments:                 # segments — генератор Segment
+        if cancel_event.is_set(): break  # кооперативная отмена
+        text_segments.append({start, end, text, confidence: exp(avg_logprob)})
+   │
+   ▼
+[5] Сопоставление спикеров (max-overlap)
+    для каждого текстового сегмента T:
+        speaker = argmax_s overlap_duration(T, s)   # макс. перекрытие
+        если пересечений нет → "UNKNOWN"
+   │
+   ▼
+[6] Имена спикеров из UI + форматирование (в outputFolder)
+    JSON: [{speaker, start, end, text, confidence}]
+    TXT:  [HH:MM:SS] SPEAKER: text
+    SRT:  стандартный SubRip
+    DOCX: Word-документ с форматированием
+   │
+   ▼
+finally: удалить все temp-файлы ($TMP/out.mp3, $TMP/out.wav)
 ```
 
 **Важные константы:**
-- `CHUNK_SECONDS = 300` (5 минут на чанк)
+- Ручной чанкинг по 300 сек **убран** — faster-whisper обрабатывает файл целиком
 - Частота дискретизации: 16000 Hz
 - Каналы: 1 (моно)
 - Формат: PCM s16le
-- Язык: `ru` (русский)
+- Язык: `ru` (русский), либо авто-определение
+- Устройство: всегда CUDA (GPU) в v2
 
 **Оптимизации:**
 - Модель загружается ОДИН раз при старте сервера и живёт в памяти
 - При смене модели в настройках — перезагрузка
-- Кэширование результатов FFmpeg (wav хранится до завершения обработки)
+- Все промежуточные файлы (MP3, WAV) пишутся в системный temp и удаляются в `finally`
+- Одновременно обрабатывается один файл (concurrency = 1, единственный GPU)
 
 ---
 
@@ -735,6 +789,7 @@ interface TranscriptionResult {
   duration_sec: number;
   segments: TranscriptSegment[];
   full_text: string;
+  speaker_names?: Record<string, string>;  // SPEAKER_00 → "Иван" (из UI)
   output_files: {
     json?: string;
     txt?: string;
@@ -815,11 +870,14 @@ interface AvailableModels {
 // useSettingsStore — настройки пользователя
 {
   model: "faster-whisper-large-v3",
-  device: "cuda" | "cpu",
+  device: "cuda",                   // только GPU в v2 (CPU не поддерживается)
+  numSpeakers: "auto",              // "auto" | number — подсказка диаризации
   outputFormats: ["json", "txt", "srt"],
   language: "ru",
   theme: "system" | "light" | "dark",
   backendPort: 8777,
+  modelCacheDir: string | null,     // каталог кэша моделей
+  hasHfToken: boolean,              // факт наличия токена (сам токен — в secure store main)
 
   watchFolder: string | null,       // путь к отслеживаемой папке
   outputFolder: string | null,      // путь к папке с результатами
@@ -832,6 +890,7 @@ interface AvailableModels {
 {
   tasks: Map<taskId, TaskInfo>,
   activeTaskId: string | null,       // выбранная задача для просмотра
+  speakerNames: Record<taskId, Record<string, string>>,  // SPEAKER_00 → "Иван"
 }
 
 // useBatchStore — пакетная очередь
@@ -897,6 +956,8 @@ interface AvailableModels {
   "language": "ru",
   "theme": "dark",
   "backendPort": 8777,
+  "numSpeakers": "auto",
+  "modelCacheDir": null,
   "watchFolder": null,
   "outputFolder": null,
   "cronExpression": "0 */1 * * *",
@@ -908,16 +969,26 @@ interface AvailableModels {
 }
 ```
 
+> **HF-токен не хранится в этом JSON в открытом виде.** Он сохраняется отдельно через
+> `safeStorage`/OS keychain (или зашифрованным полем electron-store) и пробрасывается в backend
+> через env при запуске. В истории (`maxHistoryItems`) хранятся только метаданные и пути к файлам
+> результатов — полные тексты транскрипций в стор не пишутся (во избежание раздувания).
+
 ### 14.2 .env (бэкенд)
 
 ```
+# В проде backend получает эти значения из env, который выставляет Electron Main.
+# .env нужен только для локальной разработки backend в отрыве от Electron.
 HUGGINGFACE_HUB_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx
 BACKEND_PORT=8777
 BACKEND_HOST=127.0.0.1
+BACKEND_TOKEN=<секрет для заголовка Authorization: Bearer>
 MODEL_CACHE_DIR=./backend/models
 ```
 
-`.env.example` включён в репозиторий. Пользователь копирует → `.env` и вставляет свой HF-токен.
+В проде пользователь **не редактирует `.env`** — HF-токен вводится в интерфейсе (онбординг/настройки)
+и хранится в защищённом сторе; Main-процесс пробрасывает его в backend через env при запуске.
+`.env.example` остаётся ориентиром для разработчиков.
 
 ---
 
@@ -941,11 +1012,11 @@ FileWatcher (chokidar) запускается в Main Process
     │    1. Если за это время файл изменился — сбросить таймер
     │    2. Если файл стабилен — добавить в очередь
     │
-    └──► Отправить в Python API:
+    └──► Отправить в Python API (с секрет-токеном):
          POST /api/queue
          { file_path: "C:\WatchFolder\meeting.mp4",
            model: "faster-whisper-large-v3",
-           device: "cuda",
+           num_speakers: null,
            output_formats: ["json", "txt", "srt"] }
 ```
 
@@ -964,7 +1035,7 @@ Scheduler (node-cron) тикает по расписанию:
 
 ### 15.3 Дедупликация
 
-В истории сохраняется `{ filePath, fileSize, fileMtime, processedAt }`. При сканировании файлы с совпадающими `path+size+mtime` пропускаются.
+В истории сохраняется `{ filePath, fileSize, fileMtime, processedAt }`. При сканировании файлы с совпадающими `path+size+mtime` пропускаются. Результаты обработки (JSON/TXT/SRT/DOCX) и промежуточные файлы (MP3/WAV) не попадают в `watchFolder` (пишутся в `outputFolder`/системный temp) и не имеют отслеживаемых расширений, поэтому повторную обработку не вызывают.
 
 ---
 
@@ -1023,9 +1094,18 @@ Scheduler (node-cron) тикает по расписанию:
 
 - Экспорт в DOCX (python-docx)
 - Копирование в буфер обмена
-- Обработка ошибок (FFmpeg не найден, HF токен не задан и т.д.)
-- Сборка инсталлятора (electron-builder)
-- Тестирование на Windows
+- Обработка ошибок (FFmpeg/CUDA не найдены, HF-токен не задан и т.д.)
+- Юнит-тесты (pytest/vitest), базовый CI
+
+### Этап 8: Упаковка GPU-стека (главный риск)
+
+- Бандл Python + PyTorch (CUDA) + cuDNN/cuBLAS в дистрибутив
+- electron-builder: инсталлятор Windows, ресурсы, иконки
+- Прогон на чистой машине с NVIDIA GPU (без dev-окружения)
+- Проверка первого запуска: загрузка моделей, ввод HF-токена
+
+> Укрупнённые оценки и тайминги — в `TECHNICAL_SPECIFICATION.md` §8 (актуализированы: ~17 дней,
+> упаковка вынесена в отдельный самый дорогой/рискованный этап).
 
 ---
 

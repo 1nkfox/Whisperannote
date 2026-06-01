@@ -1,0 +1,325 @@
+<KnowledgeGraph>
+  <Project NAME="WhisperAnnote" VERSION="2.0.0">
+    <keywords>whisperannote, транскрибация, диаризация, faster-whisper, pyannote, electron, react, fastapi, gpu, cuda</keywords>
+    <annotation>Карта модулей трёхпроцессного приложения (Electron Main + Renderer + Python FastAPI). Источник истины по границам модулей и публичным интерфейсам. GPU-only, без ручного чанкинга, max-overlap alignment, безопасный локальный backend.</annotation>
+
+    <!-- ===================== BACKEND (Python) ===================== -->
+
+    <M-BACKEND-CONFIG NAME="BackendConfig" TYPE="UTILITY" STATUS="planned">
+      <purpose>Конфигурация backend из env (порт, host, секрет-токен, HF-токен, MODEL_CACHE_DIR)</purpose>
+      <path>backend/config.py</path>
+      <depends>none</depends>
+      <verification-ref>V-M-BACKEND-CONFIG</verification-ref>
+      <annotations><fn-load_config PURPOSE="Загрузить конфиг из env" /><type-BackendConfig PURPOSE="Схема конфига" /></annotations>
+    </M-BACKEND-CONFIG>
+
+    <M-SCHEMAS NAME="Schemas" TYPE="UTILITY" STATUS="planned">
+      <purpose>Pydantic-модели запросов/ответов и доменных сущностей</purpose>
+      <path>backend/models.py</path>
+      <depends>none</depends>
+      <verification-ref>V-M-SCHEMAS</verification-ref>
+      <annotations>
+        <type-TranscriptSegment PURPOSE="speaker,start,end,text,confidence" />
+        <type-TranscriptionResult PURPOSE="Итог + speaker_names + output_files" />
+        <type-TaskInfo PURPOSE="Статус задачи" />
+        <type-WSMessage PURPOSE="stage/progress/log/complete/error" />
+      </annotations>
+    </M-SCHEMAS>
+
+    <M-AUTH NAME="AuthAndCors" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>Проверка секрет-токена и CORS-allowlist для origin Electron</purpose>
+      <path>backend/auth.py</path>
+      <depends>M-BACKEND-CONFIG</depends>
+      <verification-ref>V-M-AUTH</verification-ref>
+      <annotations><fn-require_token PURPOSE="Проверка Authorization: Bearer" /><fn-cors_middleware PURPOSE="CORS только renderer" /></annotations>
+    </M-AUTH>
+
+    <M-FFMPEG NAME="FfmpegUtils" TYPE="UTILITY" STATUS="planned">
+      <purpose>Конвертация MP3/WAV в temp, проверка FFmpeg, валидация путей, очистка</purpose>
+      <path>backend/utils.py</path>
+      <depends>M-BACKEND-CONFIG</depends>
+      <verification-ref>V-M-FFMPEG</verification-ref>
+      <annotations>
+        <fn-to_mp3 PURPOSE="Вход в MP3 (temp)" />
+        <fn-extract_wav PURPOSE="В WAV 16k mono (temp)" />
+        <fn-validate_path PURPOSE="Путь в allowed_roots" />
+        <fn-cleanup PURPOSE="Удаление temp" />
+      </annotations>
+    </M-FFMPEG>
+
+    <M-PROGRESS NAME="ProgressManager" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>WebSocket-прогресс по task_id (однонаправленно)</purpose>
+      <path>backend/websocket_manager.py</path>
+      <depends>M-AUTH</depends>
+      <verification-ref>V-M-PROGRESS</verification-ref>
+      <annotations><fn-send_progress PURPOSE="Отправить WSMessage" /><class-ProgressManager PURPOSE="task_id to WebSocket" /></annotations>
+    </M-PROGRESS>
+
+    <M-MODELS NAME="ModelRegistry" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>Реестр faster-whisper CT2 моделей и загрузка с прогрессом</purpose>
+      <path>backend/models_registry.py</path>
+      <depends>M-BACKEND-CONFIG, M-PROGRESS</depends>
+      <verification-ref>V-M-MODELS</verification-ref>
+      <annotations><fn-list_models PURPOSE="available/downloaded/current" /><fn-download_model PURPOSE="Скачать с прогрессом" /></annotations>
+    </M-MODELS>
+
+    <M-DIARIZE NAME="Diarization" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>Диаризация pyannote-3.1 на CUDA, опц. num_speakers</purpose>
+      <path>backend/pipeline.py</path>
+      <depends>M-BACKEND-CONFIG, M-PROGRESS</depends>
+      <verification-ref>V-M-DIARIZE</verification-ref>
+      <annotations><fn-diarize PURPOSE="WAV to speaker-сегменты" /></annotations>
+    </M-DIARIZE>
+
+    <M-TRANSCRIBE NAME="Transcription" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>Нативная транскрибация faster-whisper (vad_filter), кооперативная отмена</purpose>
+      <path>backend/pipeline.py</path>
+      <depends>M-MODELS, M-PROGRESS</depends>
+      <verification-ref>V-M-TRANSCRIBE</verification-ref>
+      <annotations><fn-transcribe PURPOSE="WAV to текстовые сегменты + confidence" /></annotations>
+    </M-TRANSCRIBE>
+
+    <M-ALIGN NAME="SpeakerAlignment" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>max-overlap сопоставление спикеров; fallback UNKNOWN</purpose>
+      <path>backend/pipeline.py</path>
+      <depends>M-SCHEMAS</depends>
+      <verification-ref>V-M-ALIGN</verification-ref>
+      <annotations><fn-align PURPOSE="Назначить спикера по argmax перекрытия" /></annotations>
+    </M-ALIGN>
+
+    <M-FORMAT NAME="Formatters" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>Экспорт JSON/TXT/SRT/DOCX с применением имён спикеров</purpose>
+      <path>backend/formatters.py</path>
+      <depends>M-SCHEMAS</depends>
+      <verification-ref>V-M-FORMAT</verification-ref>
+      <annotations>
+        <fn-to_json PURPOSE="JSON" /><fn-to_txt PURPOSE="TXT" />
+        <fn-to_srt PURPOSE="SRT" /><fn-to_docx PURPOSE="DOCX" />
+      </annotations>
+    </M-FORMAT>
+
+    <M-PIPELINE NAME="Pipeline" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>Оркестрация конвейера + прогресс/отмена/очистка temp в finally</purpose>
+      <path>backend/pipeline.py</path>
+      <depends>M-FFMPEG, M-DIARIZE, M-TRANSCRIBE, M-ALIGN, M-FORMAT, M-PROGRESS</depends>
+      <verification-ref>V-M-PIPELINE</verification-ref>
+      <annotations><fn-run PURPOSE="Выполнить конвейер для файла" /></annotations>
+    </M-PIPELINE>
+
+    <M-QUEUE NAME="QueueManager" TYPE="CORE_LOGIC" STATUS="planned">
+      <purpose>FIFO asyncio-очередь, concurrency=1 (один GPU-job)</purpose>
+      <path>backend/queue_manager.py</path>
+      <depends>M-PIPELINE</depends>
+      <verification-ref>V-M-QUEUE</verification-ref>
+      <annotations><fn-enqueue PURPOSE="Добавить задачу" /><fn-status PURPOSE="queued/processing/tasks" /><fn-cancel PURPOSE="Отмена по id" /></annotations>
+    </M-QUEUE>
+
+    <M-SERVER NAME="FastApiServer" TYPE="ENTRY_POINT" STATUS="planned">
+      <purpose>FastAPI: lifespan, маршруты, WS, auth, CORS, bind 127.0.0.1</purpose>
+      <path>backend/server.py</path>
+      <depends>M-AUTH, M-QUEUE, M-MODELS, M-PROGRESS, M-BACKEND-CONFIG, M-SCHEMAS</depends>
+      <verification-ref>V-M-SERVER</verification-ref>
+      <annotations>
+        <export-app PURPOSE="ASGI-приложение" />
+        <fn-route_transcribe PURPOSE="POST /api/transcribe" />
+        <fn-route_queue PURPOSE="/api/queue*" />
+        <fn-route_models PURPOSE="/api/models*" />
+        <fn-route_health PURPOSE="GET /api/health" />
+        <fn-ws_progress PURPOSE="WS /ws/progress/:id" />
+      </annotations>
+    </M-SERVER>
+
+    <!-- ===================== ELECTRON MAIN (TypeScript) ===================== -->
+
+    <M-CONFIG-STORE NAME="ConfigStore" TYPE="DATA_LAYER" STATUS="planned">
+      <purpose>electron-store + защищённое хранение HF-токена</purpose>
+      <path>electron/config-store.ts</path>
+      <depends>none</depends>
+      <verification-ref>V-M-CONFIG-STORE</verification-ref>
+      <annotations><fn-getConfig PURPOSE="Чтение" /><fn-setConfig PURPOSE="Запись" /><fn-getSecretHfToken PURPOSE="Токен из secure store" /></annotations>
+    </M-CONFIG-STORE>
+
+    <M-PY-MANAGER NAME="PythonManager" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>Spawn/health/restart backend, free-port, проброс токенов через env</purpose>
+      <path>electron/python-manager.ts</path>
+      <depends>M-CONFIG-STORE</depends>
+      <verification-ref>V-M-PY-MANAGER</verification-ref>
+      <annotations><fn-start PURPOSE="Запуск backend" /><fn-stop PURPOSE="Graceful shutdown" /><fn-getStatus PURPOSE="running/port" /></annotations>
+    </M-PY-MANAGER>
+
+    <M-WATCHER NAME="FileWatcher" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>chokidar: стабилизация, фильтры, игнор сгенерированных, дедуп</purpose>
+      <path>electron/file-watcher.ts</path>
+      <depends>M-CONFIG-STORE</depends>
+      <verification-ref>V-M-WATCHER</verification-ref>
+      <annotations><fn-start PURPOSE="Старт" /><fn-stop PURPOSE="Стоп" /></annotations>
+    </M-WATCHER>
+
+    <M-SCHEDULER NAME="Scheduler" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>node-cron сканирование папки</purpose>
+      <path>electron/scheduler.ts</path>
+      <depends>M-WATCHER, M-CONFIG-STORE</depends>
+      <verification-ref>V-M-SCHEDULER</verification-ref>
+      <annotations><fn-schedule PURPOSE="Запланировать скан" /></annotations>
+    </M-SCHEDULER>
+
+    <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>Белый список IPC-каналов (файлы, конфиг, backend, статус)</purpose>
+      <path>electron/ipc-handlers.ts</path>
+      <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER</depends>
+      <verification-ref>V-M-IPC</verification-ref>
+      <annotations><fn-registerIpc PURPOSE="Регистрация каналов" /></annotations>
+    </M-IPC>
+
+    <M-PRELOAD NAME="Preload" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>contextBridge: безопасный мост Main to renderer</purpose>
+      <path>electron/preload.ts</path>
+      <depends>none</depends>
+      <verification-ref>V-M-PRELOAD</verification-ref>
+      <annotations><export-electronApi PURPOSE="window.electron API" /></annotations>
+    </M-PRELOAD>
+
+    <M-MAIN NAME="ElectronMain" TYPE="ENTRY_POINT" STATUS="planned">
+      <purpose>Точка входа: окно, инициализация менеджеров, жизненный цикл</purpose>
+      <path>electron/main.ts</path>
+      <depends>M-IPC, M-PY-MANAGER, M-WATCHER, M-SCHEDULER, M-PRELOAD</depends>
+      <verification-ref>V-M-MAIN</verification-ref>
+      <annotations><fn-bootstrap PURPOSE="Поднять приложение" /></annotations>
+    </M-MAIN>
+
+    <!-- ===================== RENDERER (React) ===================== -->
+
+    <M-UI NAME="UiPrimitives" TYPE="UI_COMPONENT" STATUS="planned">
+      <purpose>shadcn/ui примитивы (~15)</purpose>
+      <path>src/components/ui/</path>
+      <depends>none</depends>
+      <verification-ref>V-M-UI</verification-ref>
+      <annotations><export-components PURPOSE="button, card, select, dialog, progress, table, toast..." /></annotations>
+    </M-UI>
+
+    <M-I18N NAME="I18n" TYPE="UTILITY" STATUS="planned">
+      <purpose>react-i18next ru/en</purpose>
+      <path>src/i18n/</path>
+      <depends>none</depends>
+      <verification-ref>V-M-I18N</verification-ref>
+      <annotations><export-i18n PURPOSE="Инстанс" /><fn-useTranslation PURPOSE="Хук" /></annotations>
+    </M-I18N>
+
+    <M-STORES NAME="Stores" TYPE="DATA_LAYER" STATUS="planned">
+      <purpose>Zustand: settings, transcription(+speakerNames), batch, backend</purpose>
+      <path>src/stores/</path>
+      <depends>none</depends>
+      <verification-ref>V-M-STORES</verification-ref>
+      <annotations>
+        <fn-useSettingsStore PURPOSE="Настройки" />
+        <fn-useTranscriptionStore PURPOSE="Задачи + speakerNames" />
+        <fn-useBatchStore PURPOSE="Очередь/история" />
+        <fn-useBackendStore PURPOSE="Статус backend/GPU" />
+      </annotations>
+    </M-STORES>
+
+    <M-API-CLIENT NAME="ApiClient" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>HTTP с токеном + useWebSocket с reconnect/resubscribe</purpose>
+      <path>src/lib/api.ts</path>
+      <depends>M-STORES</depends>
+      <verification-ref>V-M-API-CLIENT</verification-ref>
+      <annotations><fn-api PURPOSE="HTTP с Bearer" /><fn-useWebSocket PURPOSE="WS прогресса с reconnect" /></annotations>
+    </M-API-CLIENT>
+
+    <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" STATUS="planned">
+      <purpose>Каркас: Sidebar, Header, StatusBar, тема</purpose>
+      <path>src/components/layout/</path>
+      <depends>M-UI, M-I18N, M-STORES</depends>
+      <verification-ref>V-M-APP-SHELL</verification-ref>
+      <annotations><export-AppShell PURPOSE="Layout" /></annotations>
+    </M-APP-SHELL>
+
+    <M-UPLOAD NAME="UploadView" TYPE="UI_COMPONENT" STATUS="planned">
+      <purpose>Drag-and-drop, QuickSettings, запуск, ProgressCard</purpose>
+      <path>src/components/upload/</path>
+      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <verification-ref>V-M-UPLOAD</verification-ref>
+      <annotations><export-UploadView PURPOSE="Вкладка транскрибации" /></annotations>
+    </M-UPLOAD>
+
+    <M-RESULTS NAME="ResultsView" TYPE="UI_COMPONENT" STATUS="planned">
+      <purpose>Виртуализированный список, переименование спикеров, экспорт</purpose>
+      <path>src/components/transcription/</path>
+      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <verification-ref>V-M-RESULTS</verification-ref>
+      <annotations><export-SegmentList PURPOSE="Виртуализация" /><export-SpeakerLegend PURPOSE="Переименование" /><export-ExportPanel PURPOSE="Экспорт" /></annotations>
+    </M-RESULTS>
+
+    <M-BATCH NAME="BatchView" TYPE="UI_COMPONENT" STATUS="planned">
+      <purpose>FolderConfig, QueueList, HistoryTable</purpose>
+      <path>src/components/batch/</path>
+      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <verification-ref>V-M-BATCH</verification-ref>
+      <annotations><export-BatchView PURPOSE="Вкладка мониторинга" /></annotations>
+    </M-BATCH>
+
+    <M-SETTINGS NAME="SettingsView" TYPE="UI_COMPONENT" STATUS="planned">
+      <purpose>Модель, вывод, HF-токен, общие (язык/тема/порт)</purpose>
+      <path>src/components/settings/</path>
+      <depends>M-STORES, M-UI</depends>
+      <verification-ref>V-M-SETTINGS</verification-ref>
+      <annotations><export-SettingsView PURPOSE="Вкладка настроек" /></annotations>
+    </M-SETTINGS>
+
+    <M-ONBOARDING NAME="Onboarding" TYPE="UI_COMPONENT" STATUS="planned">
+      <purpose>FirstRunWizard: FFmpeg/CUDA, токен, загрузка моделей</purpose>
+      <path>src/components/onboarding/</path>
+      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <verification-ref>V-M-ONBOARDING</verification-ref>
+      <annotations><export-FirstRunWizard PURPOSE="Мастер" /><export-ModelDownload PURPOSE="Загрузка моделей" /></annotations>
+    </M-ONBOARDING>
+
+    <!-- ===================== CrossLinks (рёбра графа) ===================== -->
+
+    <!-- Backend -->
+    <CrossLink from="M-AUTH" to="M-BACKEND-CONFIG" relation="uses" />
+    <CrossLink from="M-FFMPEG" to="M-BACKEND-CONFIG" relation="uses" />
+    <CrossLink from="M-PROGRESS" to="M-AUTH" relation="protected-by" />
+    <CrossLink from="M-MODELS" to="M-PROGRESS" relation="streams-progress" />
+    <CrossLink from="M-DIARIZE" to="M-PROGRESS" relation="streams-progress" />
+    <CrossLink from="M-TRANSCRIBE" to="M-MODELS" relation="uses-model" />
+    <CrossLink from="M-ALIGN" to="M-SCHEMAS" relation="uses-types" />
+    <CrossLink from="M-FORMAT" to="M-SCHEMAS" relation="uses-types" />
+    <CrossLink from="M-PIPELINE" to="M-FFMPEG" relation="step-convert" />
+    <CrossLink from="M-PIPELINE" to="M-DIARIZE" relation="step-diarize" />
+    <CrossLink from="M-PIPELINE" to="M-TRANSCRIBE" relation="step-transcribe" />
+    <CrossLink from="M-PIPELINE" to="M-ALIGN" relation="step-align" />
+    <CrossLink from="M-PIPELINE" to="M-FORMAT" relation="step-format" />
+    <CrossLink from="M-QUEUE" to="M-PIPELINE" relation="runs-serially" />
+    <CrossLink from="M-SERVER" to="M-QUEUE" relation="enqueues" />
+    <CrossLink from="M-SERVER" to="M-AUTH" relation="guards" />
+    <CrossLink from="M-SERVER" to="M-MODELS" relation="exposes" />
+    <CrossLink from="M-SERVER" to="M-PROGRESS" relation="exposes-ws" />
+
+    <!-- Electron main -->
+    <CrossLink from="M-PY-MANAGER" to="M-CONFIG-STORE" relation="reads-token" />
+    <CrossLink from="M-WATCHER" to="M-CONFIG-STORE" relation="reads-config" />
+    <CrossLink from="M-SCHEDULER" to="M-WATCHER" relation="triggers-scan" />
+    <CrossLink from="M-IPC" to="M-PY-MANAGER" relation="controls" />
+    <CrossLink from="M-IPC" to="M-CONFIG-STORE" relation="reads-writes" />
+    <CrossLink from="M-MAIN" to="M-IPC" relation="registers" />
+    <CrossLink from="M-MAIN" to="M-PY-MANAGER" relation="owns" />
+    <CrossLink from="M-MAIN" to="M-WATCHER" relation="owns" />
+    <CrossLink from="M-MAIN" to="M-SCHEDULER" relation="owns" />
+
+    <!-- Renderer -->
+    <CrossLink from="M-API-CLIENT" to="M-STORES" relation="updates-state" />
+    <CrossLink from="M-APP-SHELL" to="M-STORES" relation="reads-state" />
+    <CrossLink from="M-UPLOAD" to="M-API-CLIENT" relation="calls-backend" />
+    <CrossLink from="M-RESULTS" to="M-API-CLIENT" relation="calls-backend" />
+    <CrossLink from="M-RESULTS" to="M-STORES" relation="reads-speaker-names" />
+    <CrossLink from="M-BATCH" to="M-API-CLIENT" relation="calls-backend" />
+    <CrossLink from="M-ONBOARDING" to="M-API-CLIENT" relation="checks-health" />
+
+    <!-- Cross-process -->
+    <CrossLink from="M-API-CLIENT" to="M-SERVER" relation="http-ws-to-backend" />
+    <CrossLink from="M-PY-MANAGER" to="M-SERVER" relation="spawns" />
+    <CrossLink from="M-IPC" to="M-PRELOAD" relation="bridged-by" />
+
+  </Project>
+</KnowledgeGraph>

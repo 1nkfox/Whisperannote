@@ -1,0 +1,145 @@
+<OperationalPackets VERSION="0.1.0">
+  <ExecutionPacketTemplate>
+    <!-- Канонический пакет controller to worker. Пример заполнен модулем M-ALIGN. -->
+    <ExecutionPacket>
+      <module-id>M-ALIGN</module-id>
+      <module-name>SpeakerAlignment</module-name>
+      <purpose>Реализовать max-overlap сопоставление спикеров без архитектурного дрейфа.</purpose>
+      <write-scope>
+        <file-1>backend/pipeline.py</file-1>
+        <file-2>backend/tests/test_align.py</file-2>
+      </write-scope>
+      <contract-excerpt><![CDATA[
+PURPOSE: Сопоставить текстовые сегменты со спикерами по максимальному перекрытию длительности.
+INPUTS: text_segments: list[TranscriptSegment], spk_segments: list[SpeakerSegment]
+OUTPUTS: list[TranscriptSegment] с проставленным speaker
+RULES: при отсутствии пересечений speaker = "UNKNOWN"; при нескольких — argmax длительности перекрытия.
+      ]]></contract-excerpt>
+      <graph-entry-excerpt><![CDATA[
+<M-ALIGN NAME="SpeakerAlignment" TYPE="CORE_LOGIC"> path=backend/pipeline.py depends=M-SCHEMAS
+  annotations: fn-align
+      ]]></graph-entry-excerpt>
+      <dependency-contract-summaries>
+        <dependency-1 module="M-SCHEMAS">Типы TranscriptSegment и SpeakerSegment со start/end (секунды).</dependency-1>
+      </dependency-contract-summaries>
+      <verification-excerpt><![CDATA[
+V-M-ALIGN: success — max-overlap назначение; success — наибольшее из нескольких пересечений;
+failure — нет пересечений -> UNKNOWN. marker: [Align][align][BLOCK_ASSIGN_SPEAKER]
+      ]]></verification-excerpt>
+      <assumptions>
+        <assumption-1>Контракты M-SCHEMAS и интервалы диаризации уже утверждены.</assumption-1>
+      </assumptions>
+      <stop-conditions>
+        <condition-1>Стоп, если требуется новая зависимость, новый модуль или неясная внешняя поверхность.</condition-1>
+      </stop-conditions>
+      <retry-budget>2</retry-budget>
+      <checkpoint-fields>
+        <field-1>assumptions-kept</field-1>
+        <field-2>commands-run</field-2>
+        <field-3>evidence-captured</field-3>
+        <field-4>next-action</field-4>
+      </checkpoint-fields>
+      <expected-graph-delta-fields>
+        <field-1>imports</field-1>
+        <field-2>exports</field-2>
+        <field-3>annotations</field-3>
+        <field-4>CrossLinks</field-4>
+      </expected-graph-delta-fields>
+      <expected-verification-delta-fields>
+        <field-1>test-files</field-1>
+        <field-2>module-checks</field-2>
+        <field-3>required-log-markers</field-3>
+        <field-4>follow-up-checks</field-4>
+      </expected-verification-delta-fields>
+      <notes>
+        <note-1>Воркер читает дополнительный контекст только если пакета недостаточно.</note-1>
+      </notes>
+    </ExecutionPacket>
+  </ExecutionPacketTemplate>
+
+  <GraphDeltaTemplate>
+    <!-- Канонический graph delta worker to controller. -->
+    <GraphDelta module="M-ALIGN">
+      <imports-added>
+        <import-1>M-SCHEMAS</import-1>
+      </imports-added>
+      <imports-removed />
+      <exports-added>
+        <export-1>align</export-1>
+      </exports-added>
+      <exports-removed />
+      <annotations-added>
+        <annotation-1>&lt;fn-align PURPOSE="max-overlap назначение спикера" /&gt;</annotation-1>
+      </annotations-added>
+      <annotations-removed />
+      <cross-links-added>
+        <CrossLink from="M-ALIGN" to="M-SCHEMAS" relation="uses-types" />
+      </cross-links-added>
+      <cross-links-removed />
+      <notes>
+        <note-1>Перечислять только реально изменившиеся факты графа.</note-1>
+      </notes>
+    </GraphDelta>
+  </GraphDeltaTemplate>
+
+  <VerificationDeltaTemplate>
+    <!-- Канонический verification delta worker to controller. -->
+    <VerificationDelta module="M-ALIGN">
+      <test-files-added>
+        <file-1>backend/tests/test_align.py</file-1>
+      </test-files-added>
+      <test-files-removed />
+      <module-checks>
+        <command-1>pytest backend/tests/test_align.py</command-1>
+      </module-checks>
+      <required-log-markers>
+        <marker-1>[Align][align][BLOCK_ASSIGN_SPEAKER]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Сегмент без пересечений помечается UNKNOWN, а не падает.</assertion-1>
+      </required-trace-assertions>
+      <wave-follow-up>
+        <item-1>Интеграция align внутри M-PIPELINE на коротком WAV.</item-1>
+      </wave-follow-up>
+      <phase-follow-up>
+        <item-1>Регресс по всему backend перед закрытием фазы.</item-1>
+      </phase-follow-up>
+    </VerificationDelta>
+  </VerificationDeltaTemplate>
+
+  <FailurePacketTemplate>
+    <!-- Канонический failure handoff verification to fixer. -->
+    <FailurePacket>
+      <scenario>Сегмент с перекрытием двух спикеров получает неверного говорящего.</scenario>
+      <contract-ref>M-ALIGN / V-M-ALIGN / scenario-2</contract-ref>
+      <expected-evidence>
+        <marker-1>[Align][align][BLOCK_ASSIGN_SPEAKER]</marker-1>
+        <assertion-1>Выбран спикер с наибольшей длительностью перекрытия.</assertion-1>
+      </expected-evidence>
+      <observed-evidence>
+        <log-1>[Align][align][BLOCK_ASSIGN_SPEAKER] выбран спикер по первому пересечению</log-1>
+        <trace-1>argmax не применён — взято первое совпадение</trace-1>
+      </observed-evidence>
+      <first-divergent-block>BLOCK_ASSIGN_SPEAKER</first-divergent-block>
+      <suggested-next-action>Прочитать контракт, заменить first-match на argmax по сумме перекрытий, добавить тест на множественное пересечение.</suggested-next-action>
+    </FailurePacket>
+  </FailurePacketTemplate>
+
+  <CheckpointReportTemplate>
+    <!-- Канонический checkpoint report. -->
+    <CheckpointReport>
+      <scope>M-ALIGN / Phase-2 step-7</scope>
+      <assumptions-kept>
+        <item-1>Контракты M-SCHEMAS совпали с пакетом.</item-1>
+      </assumptions-kept>
+      <commands-run>
+        <command-1>pytest backend/tests/test_align.py</command-1>
+      </commands-run>
+      <evidence-captured>
+        <item-1>[Align][align][BLOCK_ASSIGN_SPEAKER] эмитится; UNKNOWN на пустом пересечении.</item-1>
+      </evidence-captured>
+      <retry-budget-used>0</retry-budget-used>
+      <next-action>Готово к синхронизации shared-артефактов.</next-action>
+    </CheckpointReport>
+  </CheckpointReportTemplate>
+</OperationalPackets>

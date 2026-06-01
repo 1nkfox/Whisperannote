@@ -1,27 +1,258 @@
-# AGENTS.md — инструкции для AI-агентов
+# GRACE Framework - Project Engineering Protocol
 
-## Проект
+## Keywords
+whisperannote, транскрибация, диаризация, faster-whisper, pyannote, electron, react, fastapi, русский, совещания, gpu, cuda, vad, batch
 
-WhisperAnnote v2 — десктопное приложение для транскрибации и диаризации русской речи (Electron + React + Python FastAPI).
+## Annotation
+WhisperAnnote — десктопное приложение (Electron + React + Python FastAPI) для транскрибации и
+диаризации русскоязычных аудиозаписей совещаний. Только GPU (CUDA). Нативная обработка длинных
+файлов faster-whisper (без ручного чанкинга), диаризация pyannote, max-overlap сопоставление
+спикеров, автообработка папки, безопасный локальный backend.
 
-## Команды
+## Core Principles
 
+### 1. Never Write Code Without a Contract
+Before generating or editing any module, create or update its MODULE_CONTRACT with PURPOSE, SCOPE, INPUTS, and OUTPUTS. The contract is the source of truth. Code implements the contract, not the other way around.
+
+### 2. Semantic Markup Is Load-Bearing Structure
+Markers like `// START_BLOCK_<NAME>` and `// END_BLOCK_<NAME>` are navigation anchors, not documentation. They must be:
+- uniquely named
+- paired
+- proportionally sized so one block fits inside an LLM working window
+
+### 3. Knowledge Graph Is Always Current
+`docs/knowledge-graph.xml` is the project map. When you add a module, move a module, rename exports, or add dependencies, update the graph so future agents can navigate deterministically.
+
+### 4. Verification Is a First-Class Artifact
+Testing, traces, and log anchors are designed before large execution waves. `docs/verification-plan.xml` is part of the architecture, not an afterthought. Logs are evidence. Tests are executable contracts.
+
+### 5. Top-Down Synthesis
+Code generation follows:
+`RequirementsAnalysis -> TechnologyStack -> DevelopmentPlan -> VerificationPlan -> Code + Tests`
+
+Never jump straight to code when requirements, architecture, or verification intent are still unclear.
+
+### 6. Governed Autonomy
+Agents have freedom in HOW to implement, but not in WHAT to build. Contracts, plans, graph references, and verification requirements define the allowed space.
+
+## Grep-First Navigation
+
+Use shared docs and semantic anchors as the primary navigation surface. Prefer grep and exact-text lookup before broad prose reading.
+
+Navigation order:
+
+1. Shared/public truth: `docs/knowledge-graph.xml`, `docs/development-plan.xml`, `docs/verification-plan.xml`
+2. File-local/private truth: `MODULE_CONTRACT`, `MODULE_MAP`, `CHANGE_SUMMARY`, function contracts, semantic blocks
+3. Full file reads only after the target module, file, or block is narrowed
+
+Canonical search anchors:
+
+- `START_MODULE_CONTRACT` / `END_MODULE_CONTRACT`
+- `START_MODULE_MAP` / `END_MODULE_MAP`
+- `START_CONTRACT:` / `END_CONTRACT:`
+- `START_BLOCK_` / `END_BLOCK_`
+- `START_CHANGE_SUMMARY` / `END_CHANGE_SUMMARY`
+- `LINKS:` for graph-linked references
+- `M-` for module IDs
+- `V-M-` for verification IDs
+- `CrossLink` for graph edges
+
+Canonical grep-stable naming rules:
+
+- Module IDs use exact uppercase kebab form: `M-<TOKEN>` or `M-<TOKEN>-<TOKEN>` (`M-AUTH`, `M-PY-MANAGER`)
+- Verification IDs use exact derived form: `V-M-<MODULE-SUFFIX>` (`V-M-AUTH`, `V-M-PIPELINE`)
+- Module contract field names stay exact: `PURPOSE`, `SCOPE`, `DEPENDS`, `LINKS`, `ROLE`, `MAP_MODE`
+- Function contract field names stay exact: `PURPOSE`, `INPUTS`, `OUTPUTS`, `SIDE_EFFECTS`, `LINKS`
+- Semantic block names use uppercase snake form after the prefix: `START_BLOCK_VALIDATE_INPUT`
+- `LINKS:` values should prefer exact IDs or canonical annotation tags instead of prose references: `M-*`, `V-M-*`, `fn-*`, `type-*`, `class-*`, `export-*`, `const-*`
+- Graph edges use the exact `CrossLink from="..." to="..." relation="..."` shape; do not invent alternate attribute names
+
+Canonical search recipes:
+
+- Find the target module record: search `M-<ID>` in `docs/development-plan.xml` and `docs/knowledge-graph.xml`
+- Find verification for a module: search `V-M-<ID>` or the module ID in `docs/verification-plan.xml`
+- Find implementation files tied to graph context: search `LINKS:` plus the module ID in `src/`, `electron/`, `backend/`
+- Find file-local contracts quickly: search `START_MODULE_CONTRACT` or `START_CONTRACT:`
+- Find important logic slices: search `START_BLOCK_`
+- Find recent local rationale: search `START_CHANGE_SUMMARY`
+
+AI-friendly documentation rule:
+
+- do not restate code in prose when exact anchors already exist
+- record only non-obvious intent, invariants, hazards, and search hints
+- if a fact can be maintained as code, XML, contract markup, or a stable anchor, keep it there instead of duplicating it in Markdown
+
+## Semantic Markup Reference
+
+### Module Level
+```
+// FILE: path/to/file.ext
+// VERSION: 1.0.0
+// START_MODULE_CONTRACT
+//   PURPOSE: [What this module does - one sentence]
+//   SCOPE: [What operations are included]
+//   DEPENDS: [List of module dependencies]
+//   LINKS: [Knowledge graph references]
+//   ROLE: [Optional: RUNTIME | TEST | BARREL | CONFIG | TYPES | SCRIPT]
+//   MAP_MODE: [Optional: EXPORTS | LOCALS | SUMMARY | NONE]
+// END_MODULE_CONTRACT
+//
+// START_MODULE_MAP
+//   exportedSymbol - one-line description
+// END_MODULE_MAP
+```
+
+### Function or Component Level
+Place START_CONTRACT/END_CONTRACT above function signature and docstrings/comments.
+```
+// START_CONTRACT: functionName
+//   PURPOSE: [What it does]
+//   INPUTS: { paramName: Type - description }
+//   OUTPUTS: { ReturnType - description }
+//   SIDE_EFFECTS: [External state changes or "none"]
+//   LINKS: [Related modules/functions]
+// END_CONTRACT: functionName
+```
+
+### Code Block Level
+```
+// START_BLOCK_VALIDATE_INPUT
+// ... code ...
+// END_BLOCK_VALIDATE_INPUT
+```
+
+### Change Tracking
+```
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: [v1.2.0 - What changed and why]
+// END_CHANGE_SUMMARY
+```
+
+> Python-файлы (`backend/`) используют те же якоря в виде `# START_BLOCK_...` / `# END_BLOCK_...`.
+
+### Optional Lint Semantics
+
+Use `ROLE` and `MAP_MODE` only when the file should be linted differently from a normal runtime module.
+
+- `RUNTIME` + `EXPORTS`: normal source files with public APIs
+- `TEST` + `LOCALS`: tests where the map should describe helpers, fixtures, and assertion surfaces
+- `BARREL` + `SUMMARY`: re-export aggregators and grouped entry points
+- `CONFIG` + `NONE`: build or tool configuration files
+- `TYPES` + `EXPORTS`: pure type/interface modules
+- `SCRIPT` + `LOCALS`: CLI/bootstrap/smoke scripts
+
+## Logging and Trace Convention
+
+All important logs must point back to semantic blocks:
+```
+logger.info(`[ModuleName][functionName][BLOCK_NAME] message`, {
+  task_id,
+  stage,
+});
+```
+
+Rules:
+- prefer structured fields over prose-heavy log lines
+- redact secrets (HF-токен, секрет-токен backend) and high-risk payloads
+- treat missing log anchors on critical branches as a verification defect
+- update tests when log markers change intentionally
+
+## Verification Conventions
+
+`docs/verification-plan.xml` is the project-wide verification contract. Keep it current when module scope, test files, commands, critical log markers, or gate expectations change. Use `docs/operational-packets.xml` as the canonical schema for execution packets, graph deltas, verification deltas, and failure handoff packets.
+
+Testing rules:
+- deterministic assertions first
+- heavy ML models (pyannote, faster-whisper) are faked at module-level; real models only at wave/phase with a small audio sample; no network in tests
+- trace or log assertions when trajectory matters
+- module-local tests should stay close to the module they verify
+- wave-level and phase-level checks should be explicit in the verification plan
+
+## File Structure
+```
+docs/
+  requirements.xml       - Product requirements and use cases
+  technology.xml         - Stack decisions, tooling, observability, testing
+  development-plan.xml   - Modules, phases, data flows, ownership, write scopes
+  verification-plan.xml  - Test strategy, trace expectations, module and phase gates
+  knowledge-graph.xml    - Project-wide navigation graph
+  operational-packets.xml - Canonical packet, delta, and failure handoff templates
+electron/  ... Electron main process (TypeScript) with GRACE markup ...
+src/       ... React renderer (TypeScript) with GRACE markup ...
+backend/   ... Python FastAPI backend with GRACE markup ...
+tests/     ... tests with GRACE-aware evidence where appropriate ...
+```
+
+## Documentation Artifacts - Unique Tag Convention
+
+In `docs/*.xml`, repeated entities must use their unique ID as the XML tag name instead of a generic tag with an `ID` attribute. This reduces closing-tag ambiguity and gives LLMs stronger anchors.
+
+### Tag naming conventions
+
+| Entity type | Anti-pattern | Correct (unique tags) |
+|---|---|---|
+| Module | `<Module ID="M-CONFIG">...</Module>` | `<M-CONFIG NAME="Config" TYPE="UTILITY">...</M-CONFIG>` |
+| Verification module | `<Verification ID="V-M-AUTH">...</Verification>` | `<V-M-AUTH MODULE="M-AUTH">...</V-M-AUTH>` |
+| Phase | `<Phase number="1">...</Phase>` | `<Phase-1 name="Foundation">...</Phase-1>` |
+| Flow | `<Flow ID="DF-WATCH">...</Flow>` | `<DF-WATCH NAME="...">...</DF-WATCH>` |
+| Use case | `<UseCase ID="UC-001">...</UseCase>` | `<UC-001>...</UC-001>` |
+| Step | `<step order="1">...</step>` | `<step-1>...</step-1>` |
+| Export | `<export name="config" .../>` | `<export-config .../>` |
+| Function | `<function name="align" .../>` | `<fn-align .../>` |
+| Type | `<type name="TranscriptSegment" .../>` | `<type-TranscriptSegment .../>` |
+
+### What NOT to change
+- `CrossLink` tags stay self-closing
+- single-use structural wrappers like `<contract>`, `<inputs>`, `<outputs>`, `<annotations>`, `<test-files>`, `<module-checks>`, and `<phase-gates>` stay generic
+- code-level markup already uses unique names and stays as-is
+
+## Rules for Modifications
+
+1. Read the MODULE_CONTRACT before editing any file.
+2. After editing source or test files, update MODULE_MAP in a way that matches the file's role and map mode.
+3. After adding or removing modules, update `docs/knowledge-graph.xml`.
+4. After changing test files, commands, critical scenarios, or log markers, update `docs/verification-plan.xml`.
+5. After fixing bugs, add a CHANGE_SUMMARY entry and strengthen nearby verification if the old evidence was weak.
+6. Never remove semantic markup anchors unless the structure is intentionally replaced with better anchors.
+
+---
+
+## Проект WhisperAnnote — команды и документы
+
+### Человекочитаемые спецификации
+- `TECHNICAL_SPECIFICATION.md` — техническое задание (ревизия 2.1)
+- `ARCHITECTURE_SPEC.md` — полная спецификация архитектуры
+- `INHERITED_ARCHITECTURE.md` — заимствования из Whisperer_v1 / Whisperer_GUI / WhisperLiveKit
+
+### GRACE-артефакты (источник истины для агентов)
+- `docs/requirements.xml`, `docs/technology.xml`, `docs/development-plan.xml`,
+  `docs/verification-plan.xml`, `docs/knowledge-graph.xml`, `docs/operational-packets.xml`
+
+### Команды
 ```bash
-# Разработка
+# Разработка (Electron + React)
 npm run dev          # Запуск Electron + React (dev mode)
 npm run build        # Сборка продакшен-бандла
 npm run typecheck    # Проверка типов TypeScript
+npm test             # Vitest (frontend) + main-тесты
 
 # Python backend
 pip install -r backend/requirements.txt
-python backend/server.py
+python -m uvicorn backend.server:app --host 127.0.0.1 --port 8777
+pytest backend/tests # Тесты backend
 
-# Сборка инсталлятора
+# Сборка инсталлятора (Windows, GPU)
 npm run package
 ```
 
-## Документация проекта
+### Ключевые инварианты проекта (не нарушать)
+- **GPU-only (CUDA)** — CPU-кодпаты не добавлять.
+- **Без ручного чанкинга** — faster-whisper обрабатывает файл целиком (`vad_filter=True`).
+- **Один GPU-job** одновременно (`M-QUEUE` concurrency=1).
+- **Безопасность backend** — bind 127.0.0.1 + секрет-токен + CORS allowlist + валидация путей (`M-AUTH`, `M-FFMPEG`).
+- **Temp только в системном каталоге**, очистка в `finally`; результаты — в `outputFolder`.
+- **Секреты не логировать** (HF-токен, секрет-токен backend).
 
-- `TECHNICAL_SPECIFICATION.md` — техническое задание
-- `ARCHITECTURE_SPEC.md` — полная спецификация архитектуры
-- `INHERITED_ARCHITECTURE.md` — заимствования из старых проектов
+### Workflow GRACE
+`$grace-init` (выполнено) → `$grace-plan` → `$grace-verification` → `grace lint` / `grace status` → `$grace-execute`.
+Поддерживай `docs/knowledge-graph.xml` и `docs/verification-plan.xml` в актуальном состоянии при изменениях.
