@@ -23,6 +23,9 @@
     <dep name="pyannote.audio" version="3.1+" purpose="Диаризация спикеров" />
     <dep name="torch" version="2.1+" purpose="ML runtime (CUDA build)" />
     <dep name="torchaudio" version="2.1+" purpose="Аудио для torch" />
+    <dep name="ctranslate2" version="4.5+" purpose="Бэкенд faster-whisper (требует CUDA 12.3+ и cuDNN 9)" />
+    <dep name="nvidia-cublas-cu12" version="12.x" purpose="cuBLAS для CTranslate2 (faster-whisper GPU)" />
+    <dep name="nvidia-cudnn-cu12" version="9.x" purpose="cuDNN 9 для CTranslate2 (faster-whisper GPU)" />
     <dep name="huggingface-hub" version="0.23+" purpose="Загрузка моделей" />
     <dep name="pydantic" version="latest" purpose="Валидация данных" />
     <dep name="python-docx" version="latest" purpose="Экспорт DOCX" />
@@ -33,6 +36,8 @@
     <constraint lib="pyannote.audio" min="3.1.0" reason="speaker-diarization-3.1 и hooks прогресса" />
     <constraint lib="react" min="18.0.0" max="18.x" reason="Renderer рассчитан на React 18 API" />
     <constraint lib="electron" min="33.0.0" reason="Современный Chromium + frameless API" />
+    <constraint lib="ctranslate2" min="4.5.0" reason="CUDA 12.3+ и cuDNN 9 для GPU faster-whisper" />
+    <constraint lib="torch-cuda" min="cu124" reason="Колёса CUDA 12.4 (cu124) несут CUDA-рантайм; на машине нужен только NVIDIA-драйвер 550+" />
   </VersionConstraints>
 
   <Tooling>
@@ -41,7 +46,9 @@
     <tool name="ts-typecheck" value="tsc --noEmit" version="5.5+" />
     <tool name="frontend-test-runner" value="vitest" version="latest" />
     <tool name="backend-test-runner" value="pytest" version="latest" />
-    <tool name="python-deps" value="pip + requirements.txt" version="—" />
+    <tool name="python-deps" value="pip + requirements.txt (пины + uv.lock)" version="—" />
+    <tool name="python-bundler" value="uv + python-build-standalone (relocatable CPython, .venv sidecar)" version="latest" />
+    <tool name="installer-resources" value="electron-builder extraResources (.venv как sidecar)" version="latest" />
   </Tooling>
 
   <PreferredAgentStack>
@@ -86,4 +93,19 @@
   <DeliveryShape>
     <shape>Десктопное приложение: Electron Main (Node) + Renderer (Chromium/React) + Python FastAPI как локальный subprocess на 127.0.0.1. Один пользователь, одна машина, один GPU, обработка строго последовательная.</shape>
   </DeliveryShape>
+
+  <Packaging>
+    <decision>GPU-only Windows-инсталлятор. Bundled relocatable Python (python-build-standalone, создаётся через uv) как sidecar в extraResources electron-builder; на этапе сборки формируется .venv с зафиксированными CUDA-колёсами; backend запускается этим bundled-python. Паттерн проверен в проде ComfyUI Desktop (Electron + uv-managed .venv).</decision>
+    <runtime-requirement>На машине пользователя нужен только свежий NVIDIA-драйвер (Windows, ветка 550+). Системный CUDA Toolkit НЕ требуется — torch и nvidia-* колёса несут CUDA-рантайм внутри.</runtime-requirement>
+    <cuda-libs>torch (cu124) несёт свой CUDA-рантайм. CTranslate2/faster-whisper дополнительно требуют cuDNN 9 и cuBLAS: ставятся колёсами nvidia-cudnn-cu12 и nvidia-cublas-cu12; их DLL-каталог добавляется через os.add_dll_directory при старте backend (M-SERVER lifespan), чтобы CTranslate2 нашёл библиотеки.</cuda-libs>
+    <install-order>КРИТИЧНО: сначала ставить torch CUDA с --index-url https://download.pytorch.org/whl/cu124, ТОЛЬКО затем pyannote.audio — иначе резолвер pyannote может откатить torch на CPU-сборку. Все версии пинятся; источник правды — uv.lock / requirements.txt.</install-order>
+    <models>ML-модели (3-6 GB) НЕ входят в инсталлятор: качаются при первом запуске в MODEL_CACHE_DIR (POST /api/models/download, прогресс по WS).</models>
+    <size>Инсталлятор ~2.5-3.5 GB без моделей; доминирует torch CUDA (~2.5 GB). Соответствует NF-12.</size>
+    <build>CI на Windows-раннере собирает .venv и инсталлятор; GPU для сборки не нужен. GPU нужен только для прогона на чистой машине (Gate-Phase-8).</build>
+    <rejected-alternatives>
+      <alt reason="onefile ломается на динамических импортах и data-файлах torch/pyannote; onedir громоздок и хрупок">PyInstaller</alt>
+      <alt reason="нельзя полагаться на системный Python в десктоп-инсталляторе (его может не быть, нет прав в Program Files)">системный Python + pip</alt>
+      <alt reason="CTranslate2 не покрывает диаризацию; pyannote всё равно тянет полный torch CUDA — размер не уменьшить">отказ от torch ради размера</alt>
+    </rejected-alternatives>
+  </Packaging>
 </TechnologyStack>

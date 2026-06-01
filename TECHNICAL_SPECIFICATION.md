@@ -151,6 +151,7 @@
 | NF-14 | Лицензия | MIT (модели pyannote требуют принятия условий на hf.co) |
 | NF-15 | Безопасность локального backend | bind на `127.0.0.1`; CORS только для origin Electron-рендерера; общий секрет-токен (генерируется при запуске) обязателен во всех HTTP/WS-запросах; `file_path` валидируется на принадлежность разрешённым папкам |
 | NF-16 | Приватность | 100% локальная обработка, без облака и телеметрии |
+| NF-17 | Упаковка | Bundled Python (uv + python-build-standalone) + `.venv` с CUDA-колёсами (cu124, cuDNN 9) как `extraResources` electron-builder. На машине нужен только NVIDIA-драйвер 550+ (без системного CUDA Toolkit). Детали — `docs/technology.xml` → Packaging |
 
 ---
 

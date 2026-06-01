@@ -274,6 +274,14 @@
       <annotations><export-FirstRunWizard PURPOSE="Мастер" /><export-ModelDownload PURPOSE="Загрузка моделей" /></annotations>
     </M-ONBOARDING>
 
+    <M-PACKAGING NAME="Packaging" TYPE="INTEGRATION" STATUS="planned">
+      <purpose>GPU-инсталлятор Windows: bundled .venv (uv + python-build-standalone) + electron-builder</purpose>
+      <path>scripts/build.ps1</path>
+      <depends>M-MAIN, M-SERVER</depends>
+      <verification-ref>V-M-PACKAGING</verification-ref>
+      <annotations><fn-build_venv PURPOSE="venv с CUDA-колёсами (torch cu124 перед pyannote)" /><fn-package PURPOSE="electron-builder + .venv sidecar" /></annotations>
+    </M-PACKAGING>
+
     <!-- ===================== CrossLinks (рёбра графа) ===================== -->
 
     <!-- Backend -->
@@ -320,6 +328,11 @@
     <CrossLink from="M-API-CLIENT" to="M-SERVER" relation="http-ws-to-backend" />
     <CrossLink from="M-PY-MANAGER" to="M-SERVER" relation="spawns" />
     <CrossLink from="M-IPC" to="M-PRELOAD" relation="bridged-by" />
+
+    <!-- Build / packaging -->
+    <CrossLink from="M-PACKAGING" to="M-SERVER" relation="bundles-backend" />
+    <CrossLink from="M-PACKAGING" to="M-MAIN" relation="packages-app" />
+    <CrossLink from="M-PY-MANAGER" to="M-PACKAGING" relation="spawns-bundled-python" />
 
   </Project>
 </KnowledgeGraph>

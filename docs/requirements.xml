@@ -127,17 +127,18 @@
     <constraint-3>FFmpeg — обязательная внешняя зависимость.</constraint-3>
     <constraint-4>Секреты (HF-токен, секрет-токен backend) не должны попадать в логи.</constraint-4>
     <constraint-5>Промежуточные файлы только в системном temp; результаты только в outputFolder.</constraint-5>
+    <constraint-6>Упаковка: bundled Python (uv + python-build-standalone) + CUDA-колёса (cu124, cuDNN 9); на машине пользователя нужен только NVIDIA-драйвер 550+, без системного CUDA Toolkit. Детали — docs/technology.xml Packaging.</constraint-6>
   </Constraints>
 
   <Risks>
-    <risk-1>Упаковка PyTorch+CUDA+cuDNN/cuBLAS в инсталлятор: размер ~3 GB и чувствительность к версиям — главный риск проекта.</risk-1>
+    <risk-1>Упаковка PyTorch+CUDA+cuDNN/cuBLAS в инсталлятор: размер ~3 GB и чувствительность к версиям. Стратегия определена (technology.xml Packaging: uv + python-build-standalone, cu124, cuDNN 9, порядок установки torch-перед-pyannote); остаётся валидировать на чистой машине (Gate-Phase-8).</risk-1>
     <risk-2>Диаризация длинного файла — долгий шаг без гранулярного прогресса (нужен ProgressHook pyannote).</risk-2>
     <risk-3>Перекрёстная речь — доминирующий источник ошибок; смягчается max-overlap, но не устраняется полностью.</risk-3>
     <risk-4>Одновременные GPU-задачи → OOM; решается concurrency=1.</risk-4>
   </Risks>
 
   <OpenQuestions>
-    <question-1>Формат бандла Python: embedded Python + venv, PyInstaller или отдельная установка?</question-1>
+    <!-- RESOLVED (см. docs/technology.xml Packaging): bundled python-build-standalone через uv + .venv с CUDA-колёсами (cu124, cuDNN 9), sidecar в extraResources electron-builder. -->
     <question-2>Хранение HF-токена: Electron safeStorage, OS keychain или зашифрованное поле electron-store?</question-2>
     <question-3>Нужен ли отдельный этап Silero VAD перед диаризацией, если VAD уже встроен в faster-whisper?</question-3>
   </OpenQuestions>

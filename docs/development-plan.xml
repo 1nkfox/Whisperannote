@@ -483,6 +483,30 @@
       <verification-ref>V-M-ONBOARDING</verification-ref>
     </M-ONBOARDING>
 
+    <!-- ===================== BUILD / PACKAGING ===================== -->
+
+    <M-PACKAGING NAME="Packaging" TYPE="INTEGRATION" LAYER="6" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Сборка GPU-инсталлятора Windows: bundled Python (.venv через uv + python-build-standalone) как extraResources, electron-builder, проброс пути к bundled-python в M-PY-MANAGER.</purpose>
+        <inputs><param name="requirements" type="requirements.txt + uv.lock" /><param name="electronBuilderConfig" type="electron-builder.yml" /></inputs>
+        <outputs><param name="installer" type="WhisperAnnote-Setup.exe" /></outputs>
+        <errors><error code="VENV_BUILD_FAILED" /><error code="CUDA_WHEEL_RESOLUTION_FAILED" /></errors>
+      </contract>
+      <interface>
+        <export-build_venv PURPOSE="Создать .venv с CUDA-колёсами (torch cu124 ПЕРЕД pyannote)" />
+        <export-package PURPOSE="electron-builder: упаковать renderer/main + .venv sidecar" />
+      </interface>
+      <depends>M-MAIN, M-SERVER</depends>
+      <target><source>scripts/build.ps1</source><tests>tests/packaging/smoke-install.md</tests></target>
+      <observability><log-prefix>[Packaging]</log-prefix></observability>
+      <verification-ref>V-M-PACKAGING</verification-ref>
+      <notes>
+        <note-1>Порядок установки: torch cu124 (--index-url) -> nvidia-cudnn-cu12/cublas -> pyannote.audio. Иначе torch откатится на CPU.</note-1>
+        <note-2>Модели не бандлятся; качаются в MODEL_CACHE_DIR на первом запуске.</note-2>
+        <note-3>backend на старте добавляет каталог cuDNN/cuBLAS DLL через os.add_dll_directory.</note-3>
+      </notes>
+    </M-PACKAGING>
+
   </Modules>
 
   <DataFlow>
@@ -578,7 +602,8 @@
     </Phase-7>
     <Phase-8 name="Упаковка GPU-стека" status="pending">
       <goal>Бандл Python+PyTorch CUDA+cuDNN/cuBLAS, инсталлятор, прогон на чистой машине</goal>
-      <step-1 module="M-MAIN" status="pending" verification="V-M-MAIN">electron-builder + ресурсы</step-1>
+      <step-1 module="M-PACKAGING" status="pending" verification="V-M-PACKAGING">Сборка .venv (uv) с CUDA-колёсами в правильном порядке</step-1>
+      <step-2 module="M-PACKAGING" status="pending" verification="V-M-PACKAGING">electron-builder: инсталлятор с .venv sidecar; прогон на чистой машине</step-2>
     </Phase-8>
   </ImplementationOrder>
 

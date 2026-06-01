@@ -413,6 +413,35 @@ LoRA-файнтюнинг (~10M параметров) на RTX 3090/4090 сто�
 | FFmpeg | Конвертация аудио/видео форматов |
 | CUDA + cuDNN/cuBLAS (обязательно) | GPU-исполнение faster-whisper и pyannote |
 
+### 8.4 Упаковка и дистрибуция (GPU, Windows)
+
+**Решение:** GPU-only инсталлятор. Bundled relocatable Python (python-build-standalone, создаётся
+через `uv`) поставляется как sidecar в `extraResources` electron-builder. На этапе сборки
+формируется `.venv` с зафиксированными CUDA-колёсами; backend запускается этим bundled-python
+(`M-PY-MANAGER` получает путь к нему). Паттерн проверен в проде ComfyUI Desktop (Electron + uv-managed venv).
+
+**Рантайм у пользователя:** нужен только свежий NVIDIA-драйвер (Windows, ветка 550+). Системный
+CUDA Toolkit НЕ требуется — torch (cu124) и `nvidia-*` колёса несут CUDA-рантайм внутри.
+
+**cuDNN/cuBLAS:** CTranslate2/faster-whisper требуют cuDNN 9 + cuBLAS (CTranslate2 ≥ 4.5).
+Ставятся колёсами `nvidia-cudnn-cu12` и `nvidia-cublas-cu12`; их каталог DLL добавляется через
+`os.add_dll_directory` в lifespan backend ДО импорта ctranslate2.
+
+**Порядок установки (критично):** сначала `torch` CUDA с `--index-url .../whl/cu124`, ТОЛЬКО затем
+`pyannote.audio` — иначе резолвер pyannote может откатить torch на CPU-сборку. Версии пинятся
+(`uv.lock` / `requirements.txt`).
+
+**Модели:** не входят в инсталлятор (3-6 GB) — качаются при первом запуске в `MODEL_CACHE_DIR`.
+
+**Размер:** ~2.5–3.5 GB без моделей (доминирует torch CUDA ~2.5 GB).
+
+**Отклонённые альтернативы:** PyInstaller (onefile ломается на динамических импортах torch/pyannote;
+onedir хрупок), системный Python (нельзя полагаться в десктоп-инсталляторе), отказ от torch ради
+размера (pyannote всё равно требует полный torch CUDA).
+
+> Канонический источник решения — `docs/technology.xml` (раздел `Packaging`) и модуль `M-PACKAGING`
+> в `docs/development-plan.xml` / `docs/knowledge-graph.xml`.
+
 ---
 
 ## 9. Структура проекта

@@ -72,6 +72,33 @@
         <log-marker>[Server][lifespan][BLOCK_LIFESPAN_INIT]</log-marker>
       </required-signals>
     </VF-ONBOARD-NOCUDA>
+
+    <VF-EXPORT NAME="ЭкспортСИменамиСпикеров" USE_CASES="UC-003,UC-004" DATA_FLOW="DF-EXPORT" PRIORITY="medium">
+      <scenario>Пользователь переименовывает SPEAKER_00 и экспортирует во все форматы.</scenario>
+      <expected-outcome>JSON/TXT/SRT/DOCX содержат заданное имя, не SPEAKER_00; confidence округлён до 3 знаков.</expected-outcome>
+      <required-signals>
+        <log-marker>[Format][to_docx][BLOCK_WRITE_DOCX]</log-marker>
+        <trace-assertion>speaker_names применяются ко всем форматтерам единообразно.</trace-assertion>
+      </required-signals>
+    </VF-EXPORT>
+
+    <VF-MODEL-DOWNLOAD NAME="ЗагрузкаМоделейСПрогрессом" USE_CASES="UC-007" DATA_FLOW="DF-ONBOARD" PRIORITY="medium">
+      <scenario>Первый запуск: модель отсутствует, пользователь инициирует загрузку.</scenario>
+      <expected-outcome>Прогресс идёт по WS; при обрыве сети — понятная ошибка и возможность повтора; модель попадает в MODEL_CACHE_DIR.</expected-outcome>
+      <required-signals>
+        <log-marker>[Models][download_model][BLOCK_DOWNLOAD]</log-marker>
+        <trace-sequence>start -> progress* -> complete | error</trace-sequence>
+      </required-signals>
+    </VF-MODEL-DOWNLOAD>
+
+    <VF-CLEAN-INSTALL NAME="УстановкаНаЧистойМашине" USE_CASES="UC-007" DATA_FLOW="DF-ONBOARD" PRIORITY="high">
+      <scenario>Инсталлятор ставится на чистую Windows-машину с NVIDIA GPU и драйвером, но без dev-окружения и без системного CUDA Toolkit.</scenario>
+      <expected-outcome>Bundled-python стартует; torch.cuda.is_available()=true; CTranslate2 находит cuDNN/cuBLAS; транскрибация проходит. На машине без CUDA — понятная ошибка, не падение.</expected-outcome>
+      <required-signals>
+        <log-marker>[Server][lifespan][BLOCK_LIFESPAN_INIT]</log-marker>
+        <trace-assertion>os.add_dll_directory для cuDNN/cuBLAS выполнен до импорта ctranslate2.</trace-assertion>
+      </required-signals>
+    </VF-CLEAN-INSTALL>
   </CriticalFlows>
 
   <ModuleVerification>
@@ -249,19 +276,37 @@
     <V-M-PROGRESS MODULE="M-PROGRESS" PRIORITY="medium">
       <test-files><file>backend/tests/test_progress.py</file></test-files>
       <module-checks><check-1>pytest backend/tests/test_progress.py</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">send_progress доставляет сообщение подписчику task_id.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">send_progress доставляет сообщение только подписчику нужного task_id.</scenario-1>
+        <scenario-2 kind="success">disconnect снимает подписку; последующие send не падают.</scenario-2>
+        <scenario-3 kind="failure">Отправка на отсутствующий task_id не бросает исключение.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[Progress][send_progress][BLOCK_SEND]</marker-1></required-log-markers>
+      <required-trace-assertions><assertion-1>Сообщение не уходит в чужой task_id.</assertion-1></required-trace-assertions>
     </V-M-PROGRESS>
 
     <V-M-DIARIZE MODULE="M-DIARIZE" PRIORITY="high">
       <test-files><file>backend/tests/test_diarize.py</file></test-files>
       <module-checks><check-1>pytest backend/tests/test_diarize.py</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">Возвращает speaker-сегменты; на CUDA. Реальная модель — только wave/phase.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">Возвращает непустой список {start,end,speaker} (модель замокана на module-level).</scenario-1>
+        <scenario-2 kind="success">num_speakers пробрасывается в pipeline как подсказка.</scenario-2>
+        <scenario-3 kind="failure">Неверный HF-токен -> HF_AUTH_FAILED; отсутствие CUDA -> CUDA_UNAVAILABLE.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[Diarize][diarize][BLOCK_RUN_PIPELINE]</marker-1></required-log-markers>
+      <wave-follow-up>Реальная pyannote на коротком WAV с двумя спикерами.</wave-follow-up>
     </V-M-DIARIZE>
 
     <V-M-CONFIG-STORE MODULE="M-CONFIG-STORE" PRIORITY="high">
       <test-files><file>tests/main/config-store.test.ts</file></test-files>
       <module-checks><check-1>npm test -- tests/main/config-store.test.ts</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">HF-токен не сохраняется в открытом JSON; доступен через secure store.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">Настройки персистентны между сессиями.</scenario-1>
+        <scenario-2 kind="success">HF-токен пишется в safeStorage/keychain, а не в открытый JSON.</scenario-2>
+        <scenario-3 kind="failure">Недоступный safeStorage -> понятная ошибка, токен не пишется в открытом виде.</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[ConfigStore][getSecretHfToken][BLOCK_READ_SECURE]</marker-1></required-log-markers>
+      <required-trace-assertions><assertion-1>Открытый config.json никогда не содержит подстроку HF-токена.</assertion-1></required-trace-assertions>
     </V-M-CONFIG-STORE>
 
     <V-M-SCHEDULER MODULE="M-SCHEDULER" PRIORITY="low">
@@ -273,19 +318,32 @@
     <V-M-IPC MODULE="M-IPC" PRIORITY="medium">
       <test-files><file>tests/main/ipc.test.ts</file></test-files>
       <module-checks><check-1>npm test -- tests/main/ipc.test.ts</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">Разрешены только каналы из белого списка.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">Зарегистрированные каналы (select-file/folder, get/set-config, start/stop-backend) отвечают.</scenario-1>
+        <scenario-2 kind="failure">Вызов незарегистрированного канала отклоняется.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[IpcHandlers][registerIpc][BLOCK_REGISTER]</marker-1></required-log-markers>
+      <required-trace-assertions><assertion-1>Нет обработчиков вне белого списка.</assertion-1></required-trace-assertions>
     </V-M-IPC>
 
     <V-M-PRELOAD MODULE="M-PRELOAD" PRIORITY="medium">
       <test-files><file>tests/main/preload.test.ts</file></test-files>
       <module-checks><check-1>npm test -- tests/main/preload.test.ts</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">contextBridge экспонирует только типобезопасный белый список.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">window.electron содержит только методы белого списка.</scenario-1>
+        <scenario-2 kind="failure">Node-API (require, process) недоступны из renderer.</scenario-2>
+      </scenarios>
+      <required-trace-assertions><assertion-1>nodeIntegration выключен; contextIsolation включён.</assertion-1></required-trace-assertions>
     </V-M-PRELOAD>
 
     <V-M-MAIN MODULE="M-MAIN" PRIORITY="medium">
       <test-files><file>tests/main/main.test.ts</file></test-files>
       <module-checks><check-1>npm test -- tests/main/main.test.ts</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">Старт поднимает окно и менеджеры; shutdown останавливает backend.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">bootstrap создаёт frameless окно и инициализирует PyManager/Watcher/Scheduler/IPC.</scenario-1>
+        <scenario-2 kind="success">Выход приложения вызывает graceful shutdown backend (SIGTERM -> SIGKILL).</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Main][bootstrap][BLOCK_INIT_MANAGERS]</marker-1></required-log-markers>
     </V-M-MAIN>
 
     <V-M-UI MODULE="M-UI" PRIORITY="low">
@@ -303,7 +361,11 @@
     <V-M-STORES MODULE="M-STORES" PRIORITY="medium">
       <test-files><file>tests/frontend/stores.test.ts</file></test-files>
       <module-checks><check-1>npm test -- tests/frontend/stores.test.ts</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">speakerNames обновляются и читаются корректно.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">speakerNames[taskId] обновляются и читаются корректно.</scenario-1>
+        <scenario-2 kind="success">settings.device всегда "cuda" (нет пути выставить cpu).</scenario-2>
+        <scenario-3 kind="success">hasHfToken отражает наличие токена в secure store.</scenario-3>
+      </scenarios>
     </V-M-STORES>
 
     <V-M-APP-SHELL MODULE="M-APP-SHELL" PRIORITY="low">
@@ -321,7 +383,11 @@
     <V-M-RESULTS MODULE="M-RESULTS" PRIORITY="medium">
       <test-files><file>tests/frontend/results.test.tsx</file></test-files>
       <module-checks><check-1>npm test -- tests/frontend/results.test.tsx</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">Список виртуализирован; переименование спикера отражается в экспорте.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">Список из 5000 сегментов рендерится виртуализированно без зависаний.</scenario-1>
+        <scenario-2 kind="success">Переименование спикера обновляет store и отражается в экспорте.</scenario-2>
+      </scenarios>
+      <required-trace-assertions><assertion-1>В DOM одновременно лишь окно видимых строк (виртуализация).</assertion-1></required-trace-assertions>
     </V-M-RESULTS>
 
     <V-M-BATCH MODULE="M-BATCH" PRIORITY="low">
@@ -335,6 +401,22 @@
       <module-checks><check-1>npm test -- tests/frontend/settings.test.tsx</check-1></module-checks>
       <scenarios><scenario-1 kind="success">Настройки персистентны; устройство показано как GPU (фиксировано).</scenario-1></scenarios>
     </V-M-SETTINGS>
+
+    <V-M-PACKAGING MODULE="M-PACKAGING" PRIORITY="high">
+      <test-files><file>tests/packaging/smoke-install.md</file></test-files>
+      <module-checks>
+        <check-1>uv sync</check-1>
+        <check-2>python -c "import torch; assert torch.cuda.is_available()"</check-2>
+        <check-3>python -c "import ctranslate2"</check-3>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">torch ставится cu124 ДО pyannote; torch остаётся CUDA-сборкой.</scenario-1>
+        <scenario-2 kind="success">Инсталлятор без моделей; первый запуск качает их в MODEL_CACHE_DIR.</scenario-2>
+        <scenario-3 kind="failure">Откат torch на CPU при неверном порядке установки ловится проверкой is_available().</scenario-3>
+      </scenarios>
+      <required-log-markers><marker-1>[Packaging][build_venv][BLOCK_INSTALL_WHEELS]</marker-1></required-log-markers>
+      <phase-follow-up>Gate-Phase-8: ручной прогон инсталлятора на чистой машине с GPU (VF-CLEAN-INSTALL).</phase-follow-up>
+    </V-M-PACKAGING>
   </ModuleVerification>
 
   <PhaseGates>
