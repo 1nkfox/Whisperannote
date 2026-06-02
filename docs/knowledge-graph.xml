@@ -271,7 +271,7 @@
     <M-SETTINGS NAME="SettingsView" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>Модель, вывод, HF-токен, общие (язык/тема/порт)</purpose>
       <path>src/components/settings/</path>
-      <depends>M-STORES, M-UI</depends>
+      <depends>M-STORES, M-UI, M-I18N, M-SHARED, M-CONFIG-STORE</depends>
       <verification-ref>V-M-SETTINGS</verification-ref>
       <annotations><export-SettingsView PURPOSE="Вкладка настроек" /><fn-SettingsView PURPOSE="Persisted AppConfig form with secure HF-token IPC" /></annotations>
     </M-SETTINGS>
@@ -279,7 +279,7 @@
     <M-ONBOARDING NAME="Onboarding" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>FirstRunWizard: FFmpeg/CUDA, токен, загрузка моделей</purpose>
       <path>src/components/onboarding/</path>
-      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <depends>M-API-CLIENT, M-STORES, M-UI, M-I18N, M-SHARED, M-CONFIG-STORE, M-PROGRESS</depends>
       <verification-ref>V-M-ONBOARDING</verification-ref>
       <annotations><export-FirstRunWizard PURPOSE="Мастер" /><export-ModelDownload PURPOSE="Загрузка моделей" /><fn-checkHealth PURPOSE="CUDA/FFmpeg readiness marker" /></annotations>
     </M-ONBOARDING>
@@ -336,7 +336,12 @@
     <CrossLink from="M-BATCH" to="M-API-CLIENT" relation="calls-backend" />
     <CrossLink from="M-BATCH" to="M-STORES" relation="reads-writes-batch-state" />
     <CrossLink from="M-BATCH" to="M-UI" relation="uses-components" />
+    <CrossLink from="M-SETTINGS" to="M-STORES" relation="reads-writes-settings-state" />
+    <CrossLink from="M-SETTINGS" to="M-I18N" relation="changes-language" />
+    <CrossLink from="M-SETTINGS" to="M-CONFIG-STORE" relation="persists-config-token" />
     <CrossLink from="M-ONBOARDING" to="M-API-CLIENT" relation="checks-health-downloads-models" />
+    <CrossLink from="M-ONBOARDING" to="M-STORES" relation="reads-writes-first-run-state" />
+    <CrossLink from="M-ONBOARDING" to="M-CONFIG-STORE" relation="persists-token-first-run" />
     <CrossLink from="M-ONBOARDING" to="M-PROGRESS" relation="reads-model-progress-ws" />
 
     <!-- Cross-process -->

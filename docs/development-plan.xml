@@ -488,7 +488,7 @@
         <outputs><param name="updated" type="AppConfig" /></outputs>
       </contract>
       <interface><export-SettingsView PURPOSE="Вкладка настроек" /></interface>
-      <depends>M-STORES, M-UI</depends>
+      <depends>M-STORES, M-UI, M-I18N, M-SHARED, M-CONFIG-STORE</depends>
       <target><source>src/components/settings/</source><tests>tests/frontend/settings.test.tsx</tests></target>
       <verification-ref>V-M-SETTINGS</verification-ref>
     </M-SETTINGS>
@@ -501,7 +501,7 @@
         <errors><error code="CUDA_UNAVAILABLE" /><error code="FFMPEG_NOT_FOUND" /></errors>
       </contract>
       <interface><export-FirstRunWizard PURPOSE="Мастер первого запуска" /><export-ModelDownload PURPOSE="Загрузка моделей" /></interface>
-      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <depends>M-API-CLIENT, M-STORES, M-UI, M-I18N, M-SHARED, M-CONFIG-STORE, M-PROGRESS</depends>
       <target><source>src/components/onboarding/</source><tests>tests/frontend/onboarding.test.tsx</tests></target>
       <verification-ref>V-M-ONBOARDING</verification-ref>
     </M-ONBOARDING>
@@ -617,7 +617,7 @@
       <step-2 module="M-SCHEDULER" status="done" verification="V-M-SCHEDULER">Cron</step-2>
       <step-3 module="M-BATCH" status="done" verification="V-M-BATCH">Batch UI</step-3>
     </Phase-5>
-    <Phase-6 name="Настройки+онбординг+i18n" status="pending">
+    <Phase-6 name="Настройки+онбординг+i18n" status="done">
       <goal>Настройки, HF-токен, загрузка моделей, темы</goal>
       <step-1 module="M-SETTINGS" status="done" verification="V-M-SETTINGS">Настройки</step-1>
       <step-2 module="M-ONBOARDING" status="done" verification="V-M-ONBOARDING">Онбординг</step-2>
