@@ -228,10 +228,10 @@
       </annotations>
     </M-STORES>
 
-    <M-API-CLIENT NAME="ApiClient" TYPE="INTEGRATION" STATUS="planned">
+    <M-API-CLIENT NAME="ApiClient" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>HTTP с токеном + useWebSocket с reconnect/resubscribe</purpose>
       <path>src/lib/api.ts</path>
-      <depends>M-STORES</depends>
+      <depends>M-STORES, M-SHARED</depends>
       <verification-ref>V-M-API-CLIENT</verification-ref>
       <annotations><fn-api PURPOSE="HTTP с Bearer" /><fn-useWebSocket PURPOSE="WS прогресса с reconnect" /></annotations>
     </M-API-CLIENT>

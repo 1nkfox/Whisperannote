@@ -408,7 +408,7 @@
       <verification-ref>V-M-STORES</verification-ref>
     </M-STORES>
 
-    <M-API-CLIENT NAME="ApiClient" TYPE="INTEGRATION" LAYER="1" ORDER="9" STATUS="planned">
+    <M-API-CLIENT NAME="ApiClient" TYPE="INTEGRATION" LAYER="1" ORDER="9" STATUS="implemented">
       <contract>
         <purpose>HTTP-клиент (с Authorization: Bearer) и useWebSocket с переподключением и ре-подпиской на task_id.</purpose>
         <inputs><param name="endpoint" type="string" /><param name="token" type="string" /></inputs>
@@ -604,7 +604,7 @@
     <Phase-4 name="UI транскрибация" status="pending">
       <goal>Ручная транскрибация end-to-end</goal>
       <step-1 module="M-STORES" status="done" verification="V-M-STORES">Сторы</step-1>
-      <step-2 module="M-API-CLIENT" status="pending" verification="V-M-API-CLIENT">HTTP+WS reconnect</step-2>
+      <step-2 module="M-API-CLIENT" status="done" verification="V-M-API-CLIENT">HTTP+WS reconnect</step-2>
       <step-3 module="M-APP-SHELL" status="pending" verification="V-M-APP-SHELL">Каркас</step-3>
       <step-4 module="M-UPLOAD" status="pending" verification="V-M-UPLOAD">Загрузка</step-4>
       <step-5 module="M-RESULTS" status="pending" verification="V-M-RESULTS">Результаты+спикеры</step-5>
