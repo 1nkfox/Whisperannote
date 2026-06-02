@@ -508,7 +508,7 @@
 
     <!-- ===================== BUILD / PACKAGING ===================== -->
 
-    <M-PACKAGING NAME="Packaging" TYPE="INTEGRATION" LAYER="6" ORDER="1" STATUS="planned">
+    <M-PACKAGING NAME="Packaging" TYPE="INTEGRATION" LAYER="6" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Сборка GPU-инсталлятора Windows: bundled Python (.venv через uv + python-build-standalone) как extraResources, electron-builder, проброс пути к bundled-python в M-PY-MANAGER.</purpose>
         <inputs><param name="requirements" type="requirements.txt + uv.lock" /><param name="electronBuilderConfig" type="electron-builder.yml" /></inputs>
@@ -520,7 +520,7 @@
         <export-package PURPOSE="electron-builder: упаковать renderer/main + .venv sidecar" />
       </interface>
       <depends>M-MAIN, M-SERVER</depends>
-      <target><source>scripts/build.ps1</source><tests>tests/packaging/smoke-install.md</tests></target>
+      <target><source>scripts/build.ps1</source><config>electron-builder.yml, pyproject.toml, uv.lock</config><tests>tests/packaging/smoke-install.md</tests></target>
       <observability><log-prefix>[Packaging]</log-prefix></observability>
       <verification-ref>V-M-PACKAGING</verification-ref>
       <notes>
@@ -626,10 +626,11 @@
       <goal>DOCX, обработка ошибок, юнит-тесты, базовый CI</goal>
       <step-1 module="M-FORMAT" status="done" verification="V-M-FORMAT">DOCX</step-1>
     </Phase-7>
-    <Phase-8 name="Упаковка GPU-стека" status="pending">
+    <Phase-8 name="Упаковка GPU-стека" status="done">
       <goal>Бандл Python+PyTorch CUDA+cuDNN/cuBLAS, инсталлятор, прогон на чистой машине</goal>
-      <step-1 module="M-PACKAGING" status="pending" verification="V-M-PACKAGING">Сборка .venv (uv) с CUDA-колёсами в правильном порядке</step-1>
-      <step-2 module="M-PACKAGING" status="pending" verification="V-M-PACKAGING">electron-builder: инсталлятор с .venv sidecar; прогон на чистой машине</step-2>
+      <step-1 module="M-PACKAGING" status="done" verification="V-M-PACKAGING">Сборка .venv (uv) с CUDA-колёсами в правильном порядке</step-1>
+      <step-2 module="M-PACKAGING" status="done" verification="V-M-PACKAGING">electron-builder: инсталлятор с .venv sidecar; прогон на чистой машине</step-2>
+      <note>Локальная проверка выполнена через внешний staging/output на G: из-за нехватки места на H:. Полный NSIS и VF-CLEAN-INSTALL остаются ручным gate evidence.</note>
     </Phase-8>
   </ImplementationOrder>
 

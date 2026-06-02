@@ -284,12 +284,12 @@
       <annotations><export-FirstRunWizard PURPOSE="Мастер" /><export-ModelDownload PURPOSE="Загрузка моделей" /><fn-checkHealth PURPOSE="CUDA/FFmpeg readiness marker" /></annotations>
     </M-ONBOARDING>
 
-    <M-PACKAGING NAME="Packaging" TYPE="INTEGRATION" STATUS="planned">
+    <M-PACKAGING NAME="Packaging" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>GPU-инсталлятор Windows: bundled .venv (uv + python-build-standalone) + electron-builder</purpose>
-      <path>scripts/build.ps1</path>
+      <path>scripts/build.ps1; electron-builder.yml; pyproject.toml; uv.lock</path>
       <depends>M-MAIN, M-SERVER</depends>
       <verification-ref>V-M-PACKAGING</verification-ref>
-      <annotations><fn-build_venv PURPOSE="venv с CUDA-колёсами (torch cu124 перед pyannote)" /><fn-package PURPOSE="electron-builder + .venv sidecar" /></annotations>
+      <annotations><fn-build_venv PURPOSE="venv с CUDA-колёсами (torch cu124 перед pyannote)" /><fn-package PURPOSE="electron-builder + .venv sidecar" /><config-electron-builder PURPOSE="extraResources: resources/python + resources/backend без моделей" /></annotations>
     </M-PACKAGING>
 
     <!-- ===================== CrossLinks (рёбра графа) ===================== -->

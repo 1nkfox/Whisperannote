@@ -429,15 +429,17 @@
       <test-files><file>tests/packaging/smoke-install.md</file></test-files>
       <module-checks>
         <check-1>uv sync</check-1>
-        <check-2>python -c "import torch; assert torch.cuda.is_available()"</check-2>
-        <check-3>python -c "import ctranslate2"</check-3>
+        <check-2>powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Step build_venv</check-2>
+        <check-3>.venv\Scripts\python.exe -c "import torch; assert torch.cuda.is_available()"</check-3>
+        <check-4>.venv\Scripts\python.exe -c "import ctranslate2"</check-4>
+        <check-5>powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Step package</check-5>
       </module-checks>
       <scenarios>
         <scenario-1 kind="success">torch ставится cu124 ДО pyannote; torch остаётся CUDA-сборкой.</scenario-1>
         <scenario-2 kind="success">Инсталлятор без моделей; первый запуск качает их в MODEL_CACHE_DIR.</scenario-2>
         <scenario-3 kind="failure">Откат torch на CPU при неверном порядке установки ловится проверкой is_available().</scenario-3>
       </scenarios>
-      <required-log-markers><marker-1>[Packaging][build_venv][BLOCK_INSTALL_WHEELS]</marker-1></required-log-markers>
+      <required-log-markers><marker-1>[Packaging][build_venv][BLOCK_INSTALL_WHEELS]</marker-1><marker-2>[Packaging][package][BLOCK_STAGE_SIDECAR]</marker-2><marker-3>[Packaging][package][BLOCK_ELECTRON_BUILDER]</marker-3></required-log-markers>
       <phase-follow-up>Gate-Phase-8: ручной прогон инсталлятора на чистой машине с GPU (VF-CLEAN-INSTALL).</phase-follow-up>
     </V-M-PACKAGING>
   </ModuleVerification>
