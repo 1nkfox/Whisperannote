@@ -12,5 +12,5 @@
     "noEmit": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["electron", "tests/main", "electron.vite.config.ts"]
+  "include": ["electron", "src/shared", "tests/main", "electron.vite.config.ts"]
 }
