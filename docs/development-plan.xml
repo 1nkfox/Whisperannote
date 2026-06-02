@@ -418,6 +418,7 @@
       <interface>
         <export-api PURPOSE="HTTP-запросы к backend с токеном" />
         <export-enqueueFile PURPOSE="POST /api/queue для существующего файла из watchFolder" />
+        <export-downloadModel PURPOSE="POST /api/models/download для первого запуска" />
         <export-useWebSocket PURPOSE="WS прогресса с reconnect" />
       </interface>
       <depends>M-STORES, M-SHARED</depends>
@@ -492,7 +493,7 @@
       <verification-ref>V-M-SETTINGS</verification-ref>
     </M-SETTINGS>
 
-    <M-ONBOARDING NAME="Onboarding" TYPE="UI_COMPONENT" LAYER="3" ORDER="5" STATUS="planned">
+    <M-ONBOARDING NAME="Onboarding" TYPE="UI_COMPONENT" LAYER="3" ORDER="5" STATUS="implemented">
       <contract>
         <purpose>FirstRunWizard: проверка FFmpeg/CUDA, ввод HF-токена, загрузка моделей с прогрессом.</purpose>
         <inputs><param name="health" type="HealthStatus" /></inputs>
@@ -619,7 +620,7 @@
     <Phase-6 name="Настройки+онбординг+i18n" status="pending">
       <goal>Настройки, HF-токен, загрузка моделей, темы</goal>
       <step-1 module="M-SETTINGS" status="done" verification="V-M-SETTINGS">Настройки</step-1>
-      <step-2 module="M-ONBOARDING" status="pending" verification="V-M-ONBOARDING">Онбординг</step-2>
+      <step-2 module="M-ONBOARDING" status="done" verification="V-M-ONBOARDING">Онбординг</step-2>
     </Phase-6>
     <Phase-7 name="Экспорт+ошибки+тесты" status="pending">
       <goal>DOCX, обработка ошибок, юнит-тесты, базовый CI</goal>

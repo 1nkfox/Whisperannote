@@ -245,6 +245,7 @@
         <scenario-1 kind="success">Каждый запрос несёт Authorization: Bearer.</scenario-1>
         <scenario-2 kind="success">Обрыв WS -> reconnect и resubscribe по task_id.</scenario-2>
         <scenario-3 kind="success">enqueueFile отправляет существующий файл в POST /api/queue с JSON body.</scenario-3>
+        <scenario-4 kind="success">downloadModel отправляет POST /api/models/download с JSON body и Bearer.</scenario-4>
       </scenarios>
       <required-log-markers><marker-1>[ApiClient][useWebSocket][BLOCK_WS_RECONNECT]</marker-1></required-log-markers>
     </V-M-API-CLIENT>
@@ -255,6 +256,7 @@
       <scenarios>
         <scenario-1 kind="success">При отсутствии CUDA/FFmpeg показывается понятная ошибка.</scenario-1>
         <scenario-2 kind="success">Прогресс загрузки моделей отображается из WS.</scenario-2>
+        <scenario-3 kind="success">После CUDA, HF-токена и cached/downloaded model firstRun сохраняется как false.</scenario-3>
       </scenarios>
       <required-log-markers><marker-1>[Onboarding][checkHealth][BLOCK_CHECK_ENV]</marker-1></required-log-markers>
     </V-M-ONBOARDING>

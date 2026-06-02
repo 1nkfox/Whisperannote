@@ -233,7 +233,7 @@
       <path>src/lib/api.ts</path>
       <depends>M-STORES, M-SHARED</depends>
       <verification-ref>V-M-API-CLIENT</verification-ref>
-      <annotations><fn-api PURPOSE="HTTP с Bearer" /><fn-enqueueFile PURPOSE="POST /api/queue для watchFolder" /><fn-useWebSocket PURPOSE="WS прогресса с reconnect" /></annotations>
+      <annotations><fn-api PURPOSE="HTTP с Bearer" /><fn-enqueueFile PURPOSE="POST /api/queue для watchFolder" /><fn-downloadModel PURPOSE="POST /api/models/download" /><fn-useWebSocket PURPOSE="WS прогресса с reconnect" /></annotations>
     </M-API-CLIENT>
 
     <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" STATUS="implemented">
@@ -276,12 +276,12 @@
       <annotations><export-SettingsView PURPOSE="Вкладка настроек" /><fn-SettingsView PURPOSE="Persisted AppConfig form with secure HF-token IPC" /></annotations>
     </M-SETTINGS>
 
-    <M-ONBOARDING NAME="Onboarding" TYPE="UI_COMPONENT" STATUS="planned">
+    <M-ONBOARDING NAME="Onboarding" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>FirstRunWizard: FFmpeg/CUDA, токен, загрузка моделей</purpose>
       <path>src/components/onboarding/</path>
       <depends>M-API-CLIENT, M-STORES, M-UI</depends>
       <verification-ref>V-M-ONBOARDING</verification-ref>
-      <annotations><export-FirstRunWizard PURPOSE="Мастер" /><export-ModelDownload PURPOSE="Загрузка моделей" /></annotations>
+      <annotations><export-FirstRunWizard PURPOSE="Мастер" /><export-ModelDownload PURPOSE="Загрузка моделей" /><fn-checkHealth PURPOSE="CUDA/FFmpeg readiness marker" /></annotations>
     </M-ONBOARDING>
 
     <M-PACKAGING NAME="Packaging" TYPE="INTEGRATION" STATUS="planned">
@@ -336,7 +336,8 @@
     <CrossLink from="M-BATCH" to="M-API-CLIENT" relation="calls-backend" />
     <CrossLink from="M-BATCH" to="M-STORES" relation="reads-writes-batch-state" />
     <CrossLink from="M-BATCH" to="M-UI" relation="uses-components" />
-    <CrossLink from="M-ONBOARDING" to="M-API-CLIENT" relation="checks-health" />
+    <CrossLink from="M-ONBOARDING" to="M-API-CLIENT" relation="checks-health-downloads-models" />
+    <CrossLink from="M-ONBOARDING" to="M-PROGRESS" relation="reads-model-progress-ws" />
 
     <!-- Cross-process -->
     <CrossLink from="M-PRELOAD" to="M-SHARED" relation="uses-types" />
