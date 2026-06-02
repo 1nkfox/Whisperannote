@@ -1,26 +1,32 @@
 // FILE: electron/main.ts
-// VERSION: 0.1.0
+// VERSION: 1.0.0
 // START_MODULE_CONTRACT
-//   PURPOSE: Create the minimal secure Electron BrowserWindow for the Phase-1 scaffold.
-//   SCOPE: App lifecycle, frameless window creation, dev/prod renderer loading, secure webPreferences.
-//   DEPENDS: electron, electron/preload.ts
-//   LINKS: M-MAIN, PKG-SCAFFOLD, V-M-MAIN
-//   ROLE: RUNTIME
+//   PURPOSE: Electron entry point: browser window, manager initialization, IPC wiring, lifecycle, shutdown.
+//   SCOPE: App bootstrap, frameless window creation, ConfigStore/PyManager/IPC orchestration.
+//   DEPENDS: M-IPC, M-PY-MANAGER, M-CONFIG-STORE, M-PRELOAD, M-SHARED, electron
+//   LINKS: M-MAIN, V-M-MAIN
+//   ROLE: ENTRY_POINT
 //   MAP_MODE: EXPORTS
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   bootstrap - initialize Electron app lifecycle and create the main window.
+//   bootstrap - initialize app, create window, start backend, register IPC.
 // END_MODULE_MAP
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 
+import { getConfig } from './config-store'
+import { registerIpc } from './ipc-handlers'
+import { start as startBackend, stop as stopBackend } from './python-manager'
+
+let mainWindow: BrowserWindow | null = null
+
 // START_CONTRACT: createMainWindow
-//   PURPOSE: Create a frameless renderer window with isolation enabled and no Node integration.
+//   PURPOSE: Create a frameless application window with isolation and security preload.
 //   INPUTS: none
-//   OUTPUTS: BrowserWindow - configured application window
-//   SIDE_EFFECTS: creates a native Electron window and loads dev or built renderer URL
-//   LINKS: M-MAIN, PKG-SCAFFOLD
+//   OUTPUTS: BrowserWindow
+//   SIDE_EFFECTS: creates native window, loads dev or built renderer
+//   LINKS: M-MAIN, V-M-MAIN
 // END_CONTRACT: createMainWindow
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -48,19 +54,27 @@ function createMainWindow(): BrowserWindow {
   }
   // END_BLOCK_LOAD_RENDERER
 
+  mainWindow = window
   return window
 }
 
 // START_CONTRACT: bootstrap
-//   PURPOSE: Start Electron and create the application window when the app is ready.
+//   PURPOSE: Bootstrap the application: init managers, start backend, register IPC, create window.
 //   INPUTS: none
-//   OUTPUTS: Promise<void> - resolves after startup handlers are registered
-//   SIDE_EFFECTS: registers Electron lifecycle handlers
+//   OUTPUTS: Promise<void>
+//   SIDE_EFFECTS: registers Electron lifecycle handlers, spawns backend, creates window
 //   LINKS: M-MAIN, V-M-MAIN
 // END_CONTRACT: bootstrap
 export async function bootstrap(): Promise<void> {
-  // START_BLOCK_INIT_MANAGERS
   await app.whenReady()
+
+  // START_BLOCK_INIT_MANAGERS
+  const config = getConfig()
+  const hfToken = undefined // Will be read from secure store in Phase-5
+
+  const backendInfo = await startBackend(config.preferredPort ?? undefined, hfToken)
+  registerIpc(hfToken)
+
   createMainWindow()
   // END_BLOCK_INIT_MANAGERS
 
@@ -75,6 +89,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', async () => {
+  await stopBackend()
 })
 
 void bootstrap()
