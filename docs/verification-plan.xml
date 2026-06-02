@@ -164,7 +164,7 @@
       </module-checks>
       <scenarios>
         <scenario-1 kind="success">JSON/TXT/SRT/DOCX создаются в outputFolder.</scenario-1>
-        <scenario-2 kind="success">speaker_names применяются во всех форматах (нет SPEAKER_00 при заданном имени).</scenario-2>
+        <scenario-2 kind="success">speaker_names применяются во всех форматах, включая чтение DOCX-текста (нет SPEAKER_00 при заданном имени).</scenario-2>
       </scenarios>
       <required-log-markers><marker-1>[Format][to_docx][BLOCK_WRITE_DOCX]</marker-1></required-log-markers>
     </V-M-FORMAT>

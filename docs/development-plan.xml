@@ -624,7 +624,7 @@
     </Phase-6>
     <Phase-7 name="Экспорт+ошибки+тесты" status="pending">
       <goal>DOCX, обработка ошибок, юнит-тесты, базовый CI</goal>
-      <step-1 module="M-FORMAT" status="pending" verification="V-M-FORMAT">DOCX</step-1>
+      <step-1 module="M-FORMAT" status="done" verification="V-M-FORMAT">DOCX</step-1>
     </Phase-7>
     <Phase-8 name="Упаковка GPU-стека" status="pending">
       <goal>Бандл Python+PyTorch CUDA+cuDNN/cuBLAS, инсталлятор, прогон на чистой машине</goal>
