@@ -33,7 +33,10 @@ export type WatcherStartOptions = {
   onFile: (event: NewFileEvent) => void
 }
 
-type WatcherLike = Pick<FSWatcher, 'on' | 'close'>
+type WatcherLike = {
+  on: (event: 'add', listener: (filePath: string) => void) => unknown
+  close: () => Promise<unknown>
+}
 type WatcherFactory = (folder: string) => WatcherLike
 type StatLike = { isFile: () => boolean; size: number; mtimeMs: number }
 

@@ -11,7 +11,7 @@
 //
 // START_MODULE_MAP
 //   ApiClientError - typed frontend API error with UNAUTHORIZED/NETWORK codes.
-//   createApiClient / api - authenticated HTTP methods for backend endpoints.
+//   createApiClient / api - authenticated HTTP methods for backend endpoints including queue enqueue.
 //   useWebSocket - progress WebSocket hook with reconnect and queue resubscribe.
 // END_MODULE_MAP
 import { useEffect, useRef, useState } from 'react'
@@ -49,10 +49,21 @@ export type TranscribeUploadRequest = {
   numSpeakers?: number | null
 }
 
+export type QueueFileRequest = {
+  filePath: string
+  outputDir?: string
+  model?: string
+  language?: string
+  numSpeakers?: number | null
+  outputFormats?: string[]
+  speakerNames?: Record<string, string>
+}
+
 export type ApiClient = {
   health: () => Promise<HealthStatus>
   models: () => Promise<AvailableModels>
   transcribe: (request: TranscribeUploadRequest) => Promise<TaskInfo>
+  enqueueFile: (request: QueueFileRequest) => Promise<TaskInfo>
   queueStatus: () => Promise<TaskInfo[]>
   cancelTask: (taskId: string) => Promise<void>
   getResult: (taskId: string) => Promise<TranscriptionResult | null>
@@ -135,6 +146,20 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       }
 
       return requestJson<TaskInfo>('/api/transcribe', { method: 'POST', body: form })
+    },
+    enqueueFile: (request) => {
+      return requestJson<TaskInfo>('/api/queue', {
+        method: 'POST',
+        body: JSON.stringify({
+          file_path: request.filePath,
+          output_dir: request.outputDir ?? '',
+          model: request.model ?? 'faster-whisper-large-v3',
+          language: request.language ?? 'ru',
+          num_speakers: request.numSpeakers ?? null,
+          output_formats: request.outputFormats ?? ['json', 'txt', 'srt'],
+          speaker_names: request.speakerNames ?? {}
+        })
+      })
     },
     queueStatus: () => requestJson<TaskInfo[]>('/api/queue/status'),
     cancelTask: async (taskId) => {
@@ -253,5 +278,5 @@ export function useWebSocket(options: UseWebSocketOptions): WebSocketState {
 }
 
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: v1.0.0 - Implemented authenticated backend API client and reconnecting progress WebSocket hook.
+//   LAST_CHANGE: v1.1.0 - Added queue enqueue API for Phase-5 batch auto-processing.
 // END_CHANGE_SUMMARY

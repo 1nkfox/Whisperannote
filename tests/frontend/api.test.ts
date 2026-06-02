@@ -158,6 +158,26 @@ describe('M-API-CLIENT contracts', () => {
     expect(useBackendStore.getState().health).toBeNull()
   })
 
+  it('enqueues existing files through JSON queue endpoint', async () => {
+    const task = createTask('task-batch')
+    const client = createApiClient({
+      baseUrl: 'http://127.0.0.1:8777',
+      token: 'secret-token',
+      fetchImpl: createFetch([Response.json(task)])
+    })
+
+    await expect(client.enqueueFile({ filePath: 'H:/audio/meeting.wav', outputDir: 'H:/out' })).resolves.toEqual(task)
+
+    expect(fetchCalls[0]?.url).toBe('http://127.0.0.1:8777/api/queue')
+    expect(fetchCalls[0]?.init.method).toBe('POST')
+    expect(fetchCalls[0]?.init.headers).toMatchObject({ Authorization: 'Bearer secret-token' })
+    expect(JSON.parse(String(fetchCalls[0]?.init.body))).toMatchObject({
+      file_path: 'H:/audio/meeting.wav',
+      output_dir: 'H:/out',
+      language: 'ru'
+    })
+  })
+
   it('reconnects the progress websocket and resubscribes by queue status', async () => {
     vi.useFakeTimers()
     let resolveQueueStatus: ((tasks: TaskInfo[]) => void) | null = null
@@ -203,5 +223,5 @@ describe('M-API-CLIENT contracts', () => {
 })
 
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: v1.0.0 - Added module-local tests for authenticated HTTP and WS reconnect/resubscribe behavior.
+//   LAST_CHANGE: v1.1.0 - Added queue enqueue coverage for Phase-5 batch auto-processing.
 // END_CHANGE_SUMMARY
