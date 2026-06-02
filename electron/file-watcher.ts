@@ -3,7 +3,7 @@
 // START_MODULE_CONTRACT
 //   PURPOSE: Watch an input folder for stable audio files, ignoring generated/temp files and duplicate path+size+mtime events.
 //   SCOPE: chokidar add events, 2s stabilization, audio extension filtering, deduplication, manual scan helper, singleton lifecycle.
-//   DEPENDS: M-CONFIG-STORE, chokidar, node:fs, node:path
+//   DEPENDS: chokidar, node:fs, node:path
 //   LINKS: M-WATCHER, V-M-WATCHER
 //   ROLE: INTEGRATION
 //   MAP_MODE: EXPORTS

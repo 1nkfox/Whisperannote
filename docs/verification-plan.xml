@@ -244,6 +244,7 @@
       <scenarios>
         <scenario-1 kind="success">Каждый запрос несёт Authorization: Bearer.</scenario-1>
         <scenario-2 kind="success">Обрыв WS -> reconnect и resubscribe по task_id.</scenario-2>
+        <scenario-3 kind="success">enqueueFile отправляет существующий файл в POST /api/queue с JSON body.</scenario-3>
       </scenarios>
       <required-log-markers><marker-1>[ApiClient][useWebSocket][BLOCK_WS_RECONNECT]</marker-1></required-log-markers>
     </V-M-API-CLIENT>
@@ -313,6 +314,7 @@
       <test-files><file>tests/main/scheduler.test.ts</file></test-files>
       <module-checks><check-1>npm test -- tests/main/scheduler.test.ts</check-1></module-checks>
       <scenarios><scenario-1 kind="success">Сканирование по cron ставит только новые файлы.</scenario-1></scenarios>
+      <required-log-markers><marker-1>[Scheduler][runOnce][BLOCK_RUN_SCAN]</marker-1></required-log-markers>
     </V-M-SCHEDULER>
 
     <V-M-IPC MODULE="M-IPC" PRIORITY="medium">
@@ -404,7 +406,11 @@
     <V-M-BATCH MODULE="M-BATCH" PRIORITY="low">
       <test-files><file>tests/frontend/batch.test.tsx</file></test-files>
       <module-checks><check-1>npm test -- tests/frontend/batch.test.tsx</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">Очередь и история отображаются; удаление из очереди работает.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">Очередь и история отображаются; удаление из очереди работает.</scenario-1>
+        <scenario-2 kind="success">watcher:new-file вызывает enqueueFile и добавляет файл в batch queue.</scenario-2>
+        <scenario-3 kind="success">Старт watcher передаёт folder и cron через IPC.</scenario-3>
+      </scenarios>
     </V-M-BATCH>
 
     <V-M-SETTINGS MODULE="M-SETTINGS" PRIORITY="low">

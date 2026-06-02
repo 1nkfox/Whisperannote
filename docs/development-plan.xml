@@ -297,7 +297,7 @@
       <notes><note-1>Токен передаётся через env, не через argv (argv виден в списке процессов).</note-1></notes>
     </M-PY-MANAGER>
 
-    <M-WATCHER NAME="FileWatcher" TYPE="INTEGRATION" LAYER="1" ORDER="5" STATUS="planned">
+    <M-WATCHER NAME="FileWatcher" TYPE="INTEGRATION" LAYER="1" ORDER="5" STATUS="implemented">
       <contract>
         <purpose>chokidar-наблюдение за папкой: стабилизация 2 c, фильтр расширений, игнор временных и сгенерированных файлов, дедупликация.</purpose>
         <inputs><param name="watchFolder" type="string" /></inputs>
@@ -307,21 +307,21 @@
         <export-start PURPOSE="Запустить watcher" />
         <export-stop PURPOSE="Остановить watcher" />
       </interface>
-      <depends>M-CONFIG-STORE</depends>
+      <depends>none</depends>
       <target><source>electron/file-watcher.ts</source><tests>tests/main/file-watcher.test.ts</tests></target>
       <observability><log-prefix>[Watcher]</log-prefix><critical-block>BLOCK_STABILIZE_FILE</critical-block></observability>
       <verification-ref>V-M-WATCHER</verification-ref>
       <notes><note-1>Промежуточные файлы не пишутся в watchFolder → нет петли переобработки.</note-1></notes>
     </M-WATCHER>
 
-    <M-SCHEDULER NAME="Scheduler" TYPE="INTEGRATION" LAYER="1" ORDER="6" STATUS="planned">
+    <M-SCHEDULER NAME="Scheduler" TYPE="INTEGRATION" LAYER="1" ORDER="6" STATUS="implemented">
       <contract>
         <purpose>node-cron планировщик: периодическое сканирование папки, постановка новых файлов в очередь.</purpose>
         <inputs><param name="cronExpression" type="string" /></inputs>
         <outputs><param name="scanResult" type="string[]" /></outputs>
       </contract>
-      <interface><export-schedule PURPOSE="Запланировать сканирование" /></interface>
-      <depends>M-WATCHER, M-CONFIG-STORE</depends>
+      <interface><export-scheduleScan PURPOSE="Запланировать сканирование" /><export-runScheduledScan PURPOSE="Выполнить сканирование сразу" /></interface>
+      <depends>M-WATCHER</depends>
       <target><source>electron/scheduler.ts</source><tests>tests/main/scheduler.test.ts</tests></target>
       <verification-ref>V-M-SCHEDULER</verification-ref>
     </M-SCHEDULER>
@@ -333,7 +333,7 @@
         <outputs><param name="result" type="unknown" /></outputs>
       </contract>
       <interface><export-registerIpc PURPOSE="Зарегистрировать белый список каналов" /></interface>
-      <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SHARED</depends>
+      <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SCHEDULER, M-SHARED</depends>
       <target><source>electron/ipc-handlers.ts</source><tests>tests/main/ipc.test.ts</tests></target>
       <verification-ref>V-M-IPC</verification-ref>
     </M-IPC>
@@ -417,6 +417,7 @@
       </contract>
       <interface>
         <export-api PURPOSE="HTTP-запросы к backend с токеном" />
+        <export-enqueueFile PURPOSE="POST /api/queue для существующего файла из watchFolder" />
         <export-useWebSocket PURPOSE="WS прогресса с reconnect" />
       </interface>
       <depends>M-STORES, M-SHARED</depends>
@@ -467,7 +468,7 @@
       <notes><note-1>speakerNames из стора применяются и в UI, и при экспорте.</note-1></notes>
     </M-RESULTS>
 
-    <M-BATCH NAME="BatchView" TYPE="UI_COMPONENT" LAYER="3" ORDER="3" STATUS="planned">
+    <M-BATCH NAME="BatchView" TYPE="UI_COMPONENT" LAYER="3" ORDER="3" STATUS="implemented">
       <contract>
         <purpose>FolderConfig (папка, cron, вкл/выкл), QueueList, HistoryTable.</purpose>
         <inputs><param name="config" type="BatchConfig" /></inputs>
@@ -609,11 +610,11 @@
       <step-4 module="M-UPLOAD" status="done" verification="V-M-UPLOAD">Загрузка</step-4>
       <step-5 module="M-RESULTS" status="done" verification="V-M-RESULTS">Результаты+спикеры</step-5>
     </Phase-4>
-    <Phase-5 name="Автообработка" status="pending">
+    <Phase-5 name="Автообработка" status="done">
       <goal>Watcher, scheduler, batch UI, дедупликация</goal>
-      <step-1 module="M-WATCHER" status="pending" verification="V-M-WATCHER">File watcher</step-1>
-      <step-2 module="M-SCHEDULER" status="pending" verification="V-M-SCHEDULER">Cron</step-2>
-      <step-3 module="M-BATCH" status="pending" verification="V-M-BATCH">Batch UI</step-3>
+      <step-1 module="M-WATCHER" status="done" verification="V-M-WATCHER">File watcher</step-1>
+      <step-2 module="M-SCHEDULER" status="done" verification="V-M-SCHEDULER">Cron</step-2>
+      <step-3 module="M-BATCH" status="done" verification="V-M-BATCH">Batch UI</step-3>
     </Phase-5>
     <Phase-6 name="Настройки+онбординг+i18n" status="pending">
       <goal>Настройки, HF-токен, загрузка моделей, темы</goal>

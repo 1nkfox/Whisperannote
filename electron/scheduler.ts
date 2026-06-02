@@ -3,7 +3,7 @@
 // START_MODULE_CONTRACT
 //   PURPOSE: Schedule periodic watch-folder scans and enqueue only files that M-WATCHER has not already seen.
 //   SCOPE: node-cron lifecycle, scan trigger, singleton schedule/stop/status wrappers.
-//   DEPENDS: M-WATCHER, M-CONFIG-STORE, node-cron
+//   DEPENDS: M-WATCHER, node-cron
 //   LINKS: M-SCHEDULER, V-M-SCHEDULER, M-WATCHER
 //   ROLE: INTEGRATION
 //   MAP_MODE: EXPORTS

@@ -157,26 +157,26 @@
       <annotations><fn-start PURPOSE="Запуск backend" /><fn-stop PURPOSE="Graceful shutdown" /><fn-getStatus PURPOSE="running/port" /></annotations>
     </M-PY-MANAGER>
 
-    <M-WATCHER NAME="FileWatcher" TYPE="INTEGRATION" STATUS="planned">
+    <M-WATCHER NAME="FileWatcher" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>chokidar: стабилизация, фильтры, игнор сгенерированных, дедуп</purpose>
       <path>electron/file-watcher.ts</path>
-      <depends>M-CONFIG-STORE</depends>
+      <depends>none</depends>
       <verification-ref>V-M-WATCHER</verification-ref>
-      <annotations><fn-start PURPOSE="Старт" /><fn-stop PURPOSE="Стоп" /></annotations>
+      <annotations><class-FileWatcher PURPOSE="Стабилизация, фильтрация и дедуп" /><fn-startWatcher PURPOSE="Старт singleton watcher" /><fn-stopWatcher PURPOSE="Стоп singleton watcher" /><fn-scanFolder PURPOSE="Однократный скан папки" /></annotations>
     </M-WATCHER>
 
-    <M-SCHEDULER NAME="Scheduler" TYPE="INTEGRATION" STATUS="planned">
+    <M-SCHEDULER NAME="Scheduler" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>node-cron сканирование папки</purpose>
       <path>electron/scheduler.ts</path>
-      <depends>M-WATCHER, M-CONFIG-STORE</depends>
+      <depends>M-WATCHER</depends>
       <verification-ref>V-M-SCHEDULER</verification-ref>
-      <annotations><fn-schedule PURPOSE="Запланировать скан" /></annotations>
+      <annotations><class-Scheduler PURPOSE="Cron scan lifecycle" /><fn-scheduleScan PURPOSE="Запланировать скан" /><fn-runScheduledScan PURPOSE="Сканировать сразу" /></annotations>
     </M-SCHEDULER>
 
     <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>Белый список IPC-каналов (файлы, конфиг, backend, статус)</purpose>
       <path>electron/ipc-handlers.ts</path>
-      <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER</depends>
+      <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SCHEDULER</depends>
       <verification-ref>V-M-IPC</verification-ref>
       <annotations><fn-registerIpc PURPOSE="Регистрация каналов" /></annotations>
     </M-IPC>
@@ -233,7 +233,7 @@
       <path>src/lib/api.ts</path>
       <depends>M-STORES, M-SHARED</depends>
       <verification-ref>V-M-API-CLIENT</verification-ref>
-      <annotations><fn-api PURPOSE="HTTP с Bearer" /><fn-useWebSocket PURPOSE="WS прогресса с reconnect" /></annotations>
+      <annotations><fn-api PURPOSE="HTTP с Bearer" /><fn-enqueueFile PURPOSE="POST /api/queue для watchFolder" /><fn-useWebSocket PURPOSE="WS прогресса с reconnect" /></annotations>
     </M-API-CLIENT>
 
     <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" STATUS="implemented">
@@ -260,7 +260,7 @@
       <annotations><export-SegmentList PURPOSE="Виртуализация" /><export-SpeakerLegend PURPOSE="Переименование" /><export-ExportPanel PURPOSE="Экспорт" /></annotations>
     </M-RESULTS>
 
-    <M-BATCH NAME="BatchView" TYPE="UI_COMPONENT" STATUS="planned">
+    <M-BATCH NAME="BatchView" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>FolderConfig, QueueList, HistoryTable</purpose>
       <path>src/components/batch/</path>
       <depends>M-API-CLIENT, M-STORES, M-UI</depends>
@@ -316,8 +316,9 @@
 
     <!-- Electron main -->
     <CrossLink from="M-PY-MANAGER" to="M-CONFIG-STORE" relation="reads-token" />
-    <CrossLink from="M-WATCHER" to="M-CONFIG-STORE" relation="reads-config" />
     <CrossLink from="M-SCHEDULER" to="M-WATCHER" relation="triggers-scan" />
+    <CrossLink from="M-IPC" to="M-WATCHER" relation="controls" />
+    <CrossLink from="M-IPC" to="M-SCHEDULER" relation="controls" />
     <CrossLink from="M-IPC" to="M-PY-MANAGER" relation="controls" />
     <CrossLink from="M-IPC" to="M-CONFIG-STORE" relation="reads-writes" />
     <CrossLink from="M-MAIN" to="M-IPC" relation="registers" />
@@ -333,6 +334,8 @@
     <CrossLink from="M-RESULTS" to="M-SHARED" relation="uses-types" />
     <CrossLink from="M-RESULTS" to="M-UI" relation="uses-components" />
     <CrossLink from="M-BATCH" to="M-API-CLIENT" relation="calls-backend" />
+    <CrossLink from="M-BATCH" to="M-STORES" relation="reads-writes-batch-state" />
+    <CrossLink from="M-BATCH" to="M-UI" relation="uses-components" />
     <CrossLink from="M-ONBOARDING" to="M-API-CLIENT" relation="checks-health" />
 
     <!-- Cross-process -->
