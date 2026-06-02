@@ -215,10 +215,10 @@
       <annotations><export-i18n PURPOSE="Инстанс" /><fn-useTranslation PURPOSE="Хук" /></annotations>
     </M-I18N>
 
-    <M-STORES NAME="Stores" TYPE="DATA_LAYER" STATUS="planned">
+    <M-STORES NAME="Stores" TYPE="DATA_LAYER" STATUS="implemented">
       <purpose>Zustand: settings, transcription(+speakerNames), batch, backend</purpose>
       <path>src/stores/</path>
-      <depends>none</depends>
+      <depends>M-SHARED</depends>
       <verification-ref>V-M-STORES</verification-ref>
       <annotations>
         <fn-useSettingsStore PURPOSE="Настройки" />

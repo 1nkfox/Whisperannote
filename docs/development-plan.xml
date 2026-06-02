@@ -391,7 +391,7 @@
       <notes><note-1>Адаптация locales/ru из Whisperer_v1 в формат react-i18next.</note-1></notes>
     </M-I18N>
 
-    <M-STORES NAME="Stores" TYPE="DATA_LAYER" LAYER="1" ORDER="8" STATUS="planned">
+    <M-STORES NAME="Stores" TYPE="DATA_LAYER" LAYER="1" ORDER="8" STATUS="implemented">
       <contract>
         <purpose>Zustand-сторы: settings, transcription (+speakerNames), batch, backend.</purpose>
         <inputs><param name="action" type="StoreAction" /></inputs>
@@ -603,7 +603,7 @@
     </Phase-3>
     <Phase-4 name="UI транскрибация" status="pending">
       <goal>Ручная транскрибация end-to-end</goal>
-      <step-1 module="M-STORES" status="pending" verification="V-M-STORES">Сторы</step-1>
+      <step-1 module="M-STORES" status="done" verification="V-M-STORES">Сторы</step-1>
       <step-2 module="M-API-CLIENT" status="pending" verification="V-M-API-CLIENT">HTTP+WS reconnect</step-2>
       <step-3 module="M-APP-SHELL" status="pending" verification="V-M-APP-SHELL">Каркас</step-3>
       <step-4 module="M-UPLOAD" status="pending" verification="V-M-UPLOAD">Загрузка</step-4>
