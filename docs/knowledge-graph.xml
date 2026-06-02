@@ -236,7 +236,7 @@
       <annotations><fn-api PURPOSE="HTTP с Bearer" /><fn-useWebSocket PURPOSE="WS прогресса с reconnect" /></annotations>
     </M-API-CLIENT>
 
-    <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" STATUS="planned">
+    <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>Каркас: Sidebar, Header, StatusBar, тема</purpose>
       <path>src/components/layout/</path>
       <depends>M-UI, M-I18N, M-STORES</depends>

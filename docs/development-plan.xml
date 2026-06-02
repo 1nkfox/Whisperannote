@@ -426,7 +426,7 @@
       <notes><note-1>На reconnect: GET /api/queue/status, затем resubscribe на /ws/progress/:id.</note-1></notes>
     </M-API-CLIENT>
 
-    <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" LAYER="2" ORDER="2" STATUS="planned">
+    <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" LAYER="2" ORDER="2" STATUS="implemented">
       <contract>
         <purpose>Каркас: Sidebar (3 вкладки), Header (frameless title bar), StatusBar (backend/watcher/GPU/версия), тема.</purpose>
         <inputs><param name="children" type="ReactNode" /></inputs>
@@ -605,7 +605,7 @@
       <goal>Ручная транскрибация end-to-end</goal>
       <step-1 module="M-STORES" status="done" verification="V-M-STORES">Сторы</step-1>
       <step-2 module="M-API-CLIENT" status="done" verification="V-M-API-CLIENT">HTTP+WS reconnect</step-2>
-      <step-3 module="M-APP-SHELL" status="pending" verification="V-M-APP-SHELL">Каркас</step-3>
+      <step-3 module="M-APP-SHELL" status="done" verification="V-M-APP-SHELL">Каркас</step-3>
       <step-4 module="M-UPLOAD" status="pending" verification="V-M-UPLOAD">Загрузка</step-4>
       <step-5 module="M-RESULTS" status="pending" verification="V-M-RESULTS">Результаты+спикеры</step-5>
     </Phase-4>
