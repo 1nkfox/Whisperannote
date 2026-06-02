@@ -12,7 +12,7 @@
 
     <!-- ===================== BACKEND (Python) ===================== -->
 
-    <M-BACKEND-CONFIG NAME="BackendConfig" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="planned">
+    <M-BACKEND-CONFIG NAME="BackendConfig" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Чтение конфигурации backend из env: порт, host, секрет-токен, HF-токен, MODEL_CACHE_DIR.</purpose>
         <inputs><param name="env" type="os.environ" /></inputs>
@@ -27,7 +27,7 @@
       <notes><note-1>Секреты приходят через env (Electron Main), не через argv и не из .env в проде.</note-1></notes>
     </M-BACKEND-CONFIG>
 
-    <M-SCHEMAS NAME="Schemas" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="planned">
+    <M-SCHEMAS NAME="Schemas" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="implemented">
       <contract>
         <purpose>Pydantic-модели запросов/ответов и доменных сущностей (TranscriptSegment, TranscriptionResult, TaskInfo, WSMessage, HealthStatus).</purpose>
         <inputs><param name="dict" type="JSON" /></inputs>
@@ -44,7 +44,7 @@
       <notes><note-1>Адаптировано из WhisperLiveKit timed_objects.py; токен-уровень не нужен.</note-1></notes>
     </M-SCHEMAS>
 
-    <M-AUTH NAME="AuthAndCors" TYPE="CORE_LOGIC" LAYER="1" ORDER="1" STATUS="planned">
+    <M-AUTH NAME="AuthAndCors" TYPE="CORE_LOGIC" LAYER="1" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Middleware: проверка секрет-токена (Authorization: Bearer) на всех HTTP/WS и CORS-allowlist для origin Electron.</purpose>
         <inputs><param name="request" type="Request" /><param name="secret" type="str" /></inputs>
@@ -62,7 +62,7 @@
       <notes><note-1>Закрывает дыру наследованного allow_origins=["*"] из WhisperLiveKit.</note-1></notes>
     </M-AUTH>
 
-    <M-FFMPEG NAME="FfmpegUtils" TYPE="UTILITY" LAYER="1" ORDER="2" STATUS="planned">
+    <M-FFMPEG NAME="FfmpegUtils" TYPE="UTILITY" LAYER="1" ORDER="2" STATUS="implemented">
       <contract>
         <purpose>Конвертация входа в MP3 128k, извлечение WAV 16k mono PCM, проверка FFmpeg, управление temp-файлами, валидация путей.</purpose>
         <inputs><param name="input_path" type="str" /><param name="allowed_roots" type="list[str]" /></inputs>
@@ -82,7 +82,7 @@
       <notes><note-1>В v1 WAV писался рядом с источником — теперь только системный temp + cleanup в finally.</note-1></notes>
     </M-FFMPEG>
 
-    <M-PROGRESS NAME="ProgressManager" TYPE="INTEGRATION" LAYER="1" ORDER="3" STATUS="planned">
+    <M-PROGRESS NAME="ProgressManager" TYPE="INTEGRATION" LAYER="1" ORDER="3" STATUS="implemented">
       <contract>
         <purpose>WebSocket-менеджер прогресса по task_id (однонаправленно сервер to клиент).</purpose>
         <inputs><param name="task_id" type="str" /><param name="message" type="WSMessage" /></inputs>
@@ -100,7 +100,7 @@
       <notes><note-1>Паттерн из WhisperLiveKit, упрощён до однонаправленного.</note-1></notes>
     </M-PROGRESS>
 
-    <M-MODELS NAME="ModelRegistry" TYPE="CORE_LOGIC" LAYER="2" ORDER="1" STATUS="planned">
+    <M-MODELS NAME="ModelRegistry" TYPE="CORE_LOGIC" LAYER="2" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Реестр доступных faster-whisper моделей, статус скачивания, загрузка моделей с прогрессом.</purpose>
         <inputs><param name="model" type="str" /></inputs>
@@ -118,7 +118,7 @@
       <notes><note-1>Только CT2-сборки faster-whisper: large-v3, large-v3-turbo, medium.</note-1></notes>
     </M-MODELS>
 
-    <M-DIARIZE NAME="Diarization" TYPE="CORE_LOGIC" LAYER="2" ORDER="2" STATUS="planned">
+    <M-DIARIZE NAME="Diarization" TYPE="CORE_LOGIC" LAYER="2" ORDER="2" STATUS="implemented">
       <contract>
         <purpose>Диаризация полного аудио через pyannote speaker-diarization-3.1 на CUDA; опц. num_speakers.</purpose>
         <inputs><param name="wav_path" type="str" /><param name="num_speakers" type="int|null" /></inputs>
@@ -127,13 +127,13 @@
       </contract>
       <interface><export-diarize PURPOSE="WAV в список speaker-сегментов" /></interface>
       <depends>M-BACKEND-CONFIG, M-PROGRESS</depends>
-      <target><source>backend/pipeline.py</source><tests>backend/tests/test_diarize.py</tests></target>
+      <target><source>backend/diarize.py</source><tests>backend/tests/test_diarize.py</tests></target>
       <observability><log-prefix>[Diarize]</log-prefix><critical-block>BLOCK_RUN_PIPELINE</critical-block></observability>
       <verification-ref>V-M-DIARIZE</verification-ref>
       <notes><note-1>Модель грузится один раз (lifespan). Использовать ProgressHook pyannote для прогресса.</note-1></notes>
     </M-DIARIZE>
 
-    <M-TRANSCRIBE NAME="Transcription" TYPE="CORE_LOGIC" LAYER="2" ORDER="3" STATUS="planned">
+    <M-TRANSCRIBE NAME="Transcription" TYPE="CORE_LOGIC" LAYER="2" ORDER="3" STATUS="implemented">
       <contract>
         <purpose>Нативная транскрибация всего файла faster-whisper (language=ru, vad_filter=True), кооперативная отмена между сегментами.</purpose>
         <inputs><param name="wav_path" type="str" /><param name="language" type="str=ru" /><param name="cancel_event" type="Event" /></inputs>
@@ -142,13 +142,13 @@
       </contract>
       <interface><export-transcribe PURPOSE="WAV в текстовые сегменты с confidence" /></interface>
       <depends>M-MODELS, M-PROGRESS</depends>
-      <target><source>backend/pipeline.py</source><tests>backend/tests/test_transcribe.py</tests></target>
+      <target><source>backend/transcribe.py</source><tests>backend/tests/test_transcribe.py</tests></target>
       <observability><log-prefix>[Transcribe]</log-prefix><critical-block>BLOCK_ITER_SEGMENTS</critical-block></observability>
       <verification-ref>V-M-TRANSCRIBE</verification-ref>
       <notes><note-1>БЕЗ ручного чанкинга. API: segments, info = model.transcribe(...); segments — генератор. confidence=exp(avg_logprob).</note-1></notes>
     </M-TRANSCRIBE>
 
-    <M-ALIGN NAME="SpeakerAlignment" TYPE="CORE_LOGIC" LAYER="2" ORDER="4" STATUS="planned">
+    <M-ALIGN NAME="SpeakerAlignment" TYPE="CORE_LOGIC" LAYER="2" ORDER="4" STATUS="implemented">
       <contract>
         <purpose>Сопоставление текстовых сегментов со спикерами методом максимального перекрытия (max-overlap).</purpose>
         <inputs><param name="text_segments" type="list[TranscriptSegment]" /><param name="spk_segments" type="list[SpeakerSegment]" /></inputs>
@@ -156,13 +156,13 @@
       </contract>
       <interface><export-align PURPOSE="Назначить спикера по argmax перекрытия; fallback UNKNOWN" /></interface>
       <depends>M-SCHEMAS</depends>
-      <target><source>backend/pipeline.py</source><tests>backend/tests/test_align.py</tests></target>
+      <target><source>backend/align.py</source><tests>backend/tests/test_align.py</tests></target>
       <observability><log-prefix>[Align]</log-prefix></observability>
       <verification-ref>V-M-ALIGN</verification-ref>
       <notes><note-1>Замена midpoint из worker.py; единый fallback-лейбл UNKNOWN.</note-1></notes>
     </M-ALIGN>
 
-    <M-FORMAT NAME="Formatters" TYPE="CORE_LOGIC" LAYER="2" ORDER="5" STATUS="planned">
+    <M-FORMAT NAME="Formatters" TYPE="CORE_LOGIC" LAYER="2" ORDER="5" STATUS="implemented">
       <contract>
         <purpose>Сериализация результата в JSON/TXT/SRT/DOCX с применением пользовательских имён спикеров.</purpose>
         <inputs><param name="result" type="TranscriptionResult" /><param name="speaker_names" type="dict" /><param name="formats" type="list[str]" /></inputs>
@@ -182,7 +182,7 @@
       <notes><note-1>MD убран (дублировал TXT); DOCX добавлен (python-docx). Запись в outputFolder.</note-1></notes>
     </M-FORMAT>
 
-    <M-PIPELINE NAME="Pipeline" TYPE="CORE_LOGIC" LAYER="3" ORDER="1" STATUS="planned">
+    <M-PIPELINE NAME="Pipeline" TYPE="CORE_LOGIC" LAYER="3" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Оркестрация конвейера: convert to mp3, extract wav, diarize, transcribe, align, format; прогресс, отмена, очистка temp в finally.</purpose>
         <inputs><param name="job" type="TranscribeJob" /><param name="cancel_event" type="Event" /></inputs>
@@ -191,13 +191,13 @@
       </contract>
       <interface><export-run PURPOSE="Выполнить весь конвейер для одного файла" /></interface>
       <depends>M-FFMPEG, M-DIARIZE, M-TRANSCRIBE, M-ALIGN, M-FORMAT, M-PROGRESS</depends>
-      <target><source>backend/pipeline.py</source><tests>backend/tests/test_pipeline_integration.py</tests></target>
+      <target><source>backend/pipeline.py</source><tests>backend/tests/test_pipeline.py</tests></target>
       <observability><log-prefix>[Pipeline]</log-prefix><critical-block>BLOCK_RUN_PIPELINE</critical-block></observability>
       <verification-ref>V-M-PIPELINE</verification-ref>
       <notes><note-1>Адаптация worker.py. Тяжёлые шаги — asyncio.to_thread.</note-1></notes>
     </M-PIPELINE>
 
-    <M-QUEUE NAME="QueueManager" TYPE="CORE_LOGIC" LAYER="4" ORDER="1" STATUS="planned">
+    <M-QUEUE NAME="QueueManager" TYPE="CORE_LOGIC" LAYER="4" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>FIFO-очередь задач на asyncio.Queue со строгой последовательной обработкой (один GPU-job).</purpose>
         <inputs><param name="job" type="TranscribeJob" /></inputs>
@@ -216,7 +216,7 @@
       <notes><note-1>concurrency=1 — инвариант против OOM на единственном GPU.</note-1></notes>
     </M-QUEUE>
 
-    <M-SERVER NAME="FastApiServer" TYPE="ENTRY_POINT" LAYER="5" ORDER="1" STATUS="planned">
+    <M-SERVER NAME="FastApiServer" TYPE="ENTRY_POINT" LAYER="5" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>FastAPI-приложение: lifespan (HF login, загрузка моделей, проверка CUDA), маршруты, WS, auth, CORS.</purpose>
         <inputs><param name="http_request" type="Request" /></inputs>
@@ -553,21 +553,22 @@
       <step-1 module="M-UI" status="pending" verification="V-M-UI">UI-примитивы</step-1>
       <step-2 module="M-I18N" status="pending" verification="V-M-I18N">i18n ru/en</step-2>
     </Phase-1>
-    <Phase-2 name="Backend Core" status="pending">
-      <goal>FastAPI, auth, pipeline без чанкинга, очередь, WS</goal>
-      <step-1 module="M-BACKEND-CONFIG" status="pending" verification="V-M-BACKEND-CONFIG">Конфиг из env</step-1>
-      <step-2 module="M-SCHEMAS" status="pending" verification="V-M-SCHEMAS">Pydantic-модели</step-2>
-      <step-3 module="M-AUTH" status="pending" verification="V-M-AUTH">Токен + CORS</step-3>
-      <step-4 module="M-FFMPEG" status="pending" verification="V-M-FFMPEG">Конвертация + temp + валидация путей</step-4>
-      <step-5 module="M-DIARIZE" status="pending" verification="V-M-DIARIZE">Диаризация</step-5>
-      <step-6 module="M-TRANSCRIBE" status="pending" verification="V-M-TRANSCRIBE">Транскрибация нативно</step-6>
-      <step-7 module="M-ALIGN" status="pending" verification="V-M-ALIGN">max-overlap</step-7>
-      <step-8 module="M-FORMAT" status="pending" verification="V-M-FORMAT">Форматтеры</step-8>
-      <step-9 module="M-PIPELINE" status="pending" verification="V-M-PIPELINE">Оркестрация</step-9>
-      <step-10 module="M-QUEUE" status="pending" verification="V-M-QUEUE">Очередь concurrency=1</step-10>
-      <step-11 module="M-PROGRESS" status="pending" verification="V-M-PROGRESS">WS прогресса</step-11>
-      <step-12 module="M-MODELS" status="pending" verification="V-M-MODELS">Реестр+загрузка моделей</step-12>
-      <step-13 module="M-SERVER" status="pending" verification="V-M-SERVER">Сборка сервера</step-13>
+    <Phase-2 name="Backend Core" status="done">
+      <goal>FastAPI, auth, pipeline без чанкинга, очередь, WS — реализовано, 45 тестов зелёные (1 skip: ffmpeg-бинаря нет в CI)</goal>
+      <step-1 module="M-BACKEND-CONFIG" status="done" verification="V-M-BACKEND-CONFIG">Конфиг из env</step-1>
+      <step-2 module="M-SCHEMAS" status="done" verification="V-M-SCHEMAS">Pydantic-модели</step-2>
+      <step-3 module="M-AUTH" status="done" verification="V-M-AUTH">Токен + CORS</step-3>
+      <step-4 module="M-FFMPEG" status="done" verification="V-M-FFMPEG">Конвертация + temp + валидация путей</step-4>
+      <step-5 module="M-DIARIZE" status="done" verification="V-M-DIARIZE">Диаризация</step-5>
+      <step-6 module="M-TRANSCRIBE" status="done" verification="V-M-TRANSCRIBE">Транскрибация нативно</step-6>
+      <step-7 module="M-ALIGN" status="done" verification="V-M-ALIGN">max-overlap</step-7>
+      <step-8 module="M-FORMAT" status="done" verification="V-M-FORMAT">Форматтеры</step-8>
+      <step-9 module="M-PIPELINE" status="done" verification="V-M-PIPELINE">Оркестрация</step-9>
+      <step-10 module="M-QUEUE" status="done" verification="V-M-QUEUE">Очередь concurrency=1</step-10>
+      <step-11 module="M-PROGRESS" status="done" verification="V-M-PROGRESS">WS прогресса</step-11>
+      <step-12 module="M-MODELS" status="done" verification="V-M-MODELS">Реестр+загрузка моделей</step-12>
+      <step-13 module="M-SERVER" status="done" verification="V-M-SERVER">Сборка сервера</step-13>
+      <note>Реальные модели/GPU и ffmpeg-конвертация валидируются на wave/phase (см. wave-follow-up в V-M-DIARIZE/V-M-TRANSCRIBE и VF-CLEAN-INSTALL).</note>
     </Phase-2>
     <Phase-3 name="Electron Shell" status="pending">
       <goal>Main process, Python manager, IPC, config-store</goal>

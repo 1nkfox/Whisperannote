@@ -140,6 +140,7 @@
   <OpenQuestions>
     <!-- RESOLVED (см. docs/technology.xml Packaging): bundled python-build-standalone через uv + .venv с CUDA-колёсами (cu124, cuDNN 9), sidecar в extraResources electron-builder. -->
     <question-2>Хранение HF-токена: Electron safeStorage, OS keychain или зашифрованное поле electron-store?</question-2>
-    <question-3>Нужен ли отдельный этап Silero VAD перед диаризацией, если VAD уже встроен в faster-whisper?</question-3>
+    <!-- RESOLVED (Phase-2): отдельный Silero VAD в v1 не добавляем — используется встроенный vad_filter=True у faster-whisper (backend/transcribe.py). Пересмотреть, если качество границ сегментов окажется недостаточным. -->
+
   </OpenQuestions>
 </RequirementsAnalysis>

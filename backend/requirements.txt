@@ -1,0 +1,33 @@
+# WhisperAnnote backend dependencies (Windows, GPU/CUDA-only).
+#
+# INSTALL ORDER IS CRITICAL (see docs/technology.xml -> Packaging):
+#   1) Install torch CUDA FIRST from the cu124 index:
+#        pip install torch==2.* torchaudio==2.* --index-url https://download.pytorch.org/whl/cu124
+#   2) THEN install the rest below (pyannote must come after torch, or it may
+#      downgrade torch to a CPU build).
+#
+# CUDA runtime: torch (cu124) bundles its own CUDA libs. CTranslate2/faster-whisper
+# additionally need cuDNN 9 + cuBLAS -> provided by the nvidia-* wheels below; their
+# DLL dir is registered via os.add_dll_directory at backend startup (see server.py).
+
+# --- core API ---
+fastapi>=0.115,<1.0
+uvicorn>=0.30,<1.0
+pydantic>=2.7,<3.0
+python-multipart>=0.0.9
+
+# --- ML / audio (GPU) ---
+faster-whisper>=1.1.0
+ctranslate2>=4.5.0
+pyannote.audio>=3.3.0
+huggingface_hub>=0.24
+
+# cuDNN 9 / cuBLAS for CTranslate2 (Windows). Installed via wheels so no system CUDA needed.
+nvidia-cudnn-cu12>=9.0
+nvidia-cublas-cu12>=12.0
+
+# --- export ---
+python-docx>=1.1.0
+
+# --- dev/test (not shipped in the installer) ---
+# pytest, pytest-asyncio, httpx

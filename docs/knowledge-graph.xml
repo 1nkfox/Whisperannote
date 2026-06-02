@@ -5,7 +5,7 @@
 
     <!-- ===================== BACKEND (Python) ===================== -->
 
-    <M-BACKEND-CONFIG NAME="BackendConfig" TYPE="UTILITY" STATUS="planned">
+    <M-BACKEND-CONFIG NAME="BackendConfig" TYPE="UTILITY" STATUS="implemented">
       <purpose>Конфигурация backend из env (порт, host, секрет-токен, HF-токен, MODEL_CACHE_DIR)</purpose>
       <path>backend/config.py</path>
       <depends>none</depends>
@@ -13,7 +13,7 @@
       <annotations><fn-load_config PURPOSE="Загрузить конфиг из env" /><type-BackendConfig PURPOSE="Схема конфига" /></annotations>
     </M-BACKEND-CONFIG>
 
-    <M-SCHEMAS NAME="Schemas" TYPE="UTILITY" STATUS="planned">
+    <M-SCHEMAS NAME="Schemas" TYPE="UTILITY" STATUS="implemented">
       <purpose>Pydantic-модели запросов/ответов и доменных сущностей</purpose>
       <path>backend/models.py</path>
       <depends>none</depends>
@@ -26,7 +26,7 @@
       </annotations>
     </M-SCHEMAS>
 
-    <M-AUTH NAME="AuthAndCors" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-AUTH NAME="AuthAndCors" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>Проверка секрет-токена и CORS-allowlist для origin Electron</purpose>
       <path>backend/auth.py</path>
       <depends>M-BACKEND-CONFIG</depends>
@@ -34,7 +34,7 @@
       <annotations><fn-require_token PURPOSE="Проверка Authorization: Bearer" /><fn-cors_middleware PURPOSE="CORS только renderer" /></annotations>
     </M-AUTH>
 
-    <M-FFMPEG NAME="FfmpegUtils" TYPE="UTILITY" STATUS="planned">
+    <M-FFMPEG NAME="FfmpegUtils" TYPE="UTILITY" STATUS="implemented">
       <purpose>Конвертация MP3/WAV в temp, проверка FFmpeg, валидация путей, очистка</purpose>
       <path>backend/utils.py</path>
       <depends>M-BACKEND-CONFIG</depends>
@@ -47,7 +47,7 @@
       </annotations>
     </M-FFMPEG>
 
-    <M-PROGRESS NAME="ProgressManager" TYPE="INTEGRATION" STATUS="planned">
+    <M-PROGRESS NAME="ProgressManager" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>WebSocket-прогресс по task_id (однонаправленно)</purpose>
       <path>backend/websocket_manager.py</path>
       <depends>M-AUTH</depends>
@@ -55,7 +55,7 @@
       <annotations><fn-send_progress PURPOSE="Отправить WSMessage" /><class-ProgressManager PURPOSE="task_id to WebSocket" /></annotations>
     </M-PROGRESS>
 
-    <M-MODELS NAME="ModelRegistry" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-MODELS NAME="ModelRegistry" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>Реестр faster-whisper CT2 моделей и загрузка с прогрессом</purpose>
       <path>backend/models_registry.py</path>
       <depends>M-BACKEND-CONFIG, M-PROGRESS</depends>
@@ -63,31 +63,31 @@
       <annotations><fn-list_models PURPOSE="available/downloaded/current" /><fn-download_model PURPOSE="Скачать с прогрессом" /></annotations>
     </M-MODELS>
 
-    <M-DIARIZE NAME="Diarization" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-DIARIZE NAME="Diarization" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>Диаризация pyannote-3.1 на CUDA, опц. num_speakers</purpose>
-      <path>backend/pipeline.py</path>
+      <path>backend/diarize.py</path>
       <depends>M-BACKEND-CONFIG, M-PROGRESS</depends>
       <verification-ref>V-M-DIARIZE</verification-ref>
       <annotations><fn-diarize PURPOSE="WAV to speaker-сегменты" /></annotations>
     </M-DIARIZE>
 
-    <M-TRANSCRIBE NAME="Transcription" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-TRANSCRIBE NAME="Transcription" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>Нативная транскрибация faster-whisper (vad_filter), кооперативная отмена</purpose>
-      <path>backend/pipeline.py</path>
+      <path>backend/transcribe.py</path>
       <depends>M-MODELS, M-PROGRESS</depends>
       <verification-ref>V-M-TRANSCRIBE</verification-ref>
       <annotations><fn-transcribe PURPOSE="WAV to текстовые сегменты + confidence" /></annotations>
     </M-TRANSCRIBE>
 
-    <M-ALIGN NAME="SpeakerAlignment" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-ALIGN NAME="SpeakerAlignment" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>max-overlap сопоставление спикеров; fallback UNKNOWN</purpose>
-      <path>backend/pipeline.py</path>
+      <path>backend/align.py</path>
       <depends>M-SCHEMAS</depends>
       <verification-ref>V-M-ALIGN</verification-ref>
       <annotations><fn-align PURPOSE="Назначить спикера по argmax перекрытия" /></annotations>
     </M-ALIGN>
 
-    <M-FORMAT NAME="Formatters" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-FORMAT NAME="Formatters" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>Экспорт JSON/TXT/SRT/DOCX с применением имён спикеров</purpose>
       <path>backend/formatters.py</path>
       <depends>M-SCHEMAS</depends>
@@ -98,7 +98,7 @@
       </annotations>
     </M-FORMAT>
 
-    <M-PIPELINE NAME="Pipeline" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-PIPELINE NAME="Pipeline" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>Оркестрация конвейера + прогресс/отмена/очистка temp в finally</purpose>
       <path>backend/pipeline.py</path>
       <depends>M-FFMPEG, M-DIARIZE, M-TRANSCRIBE, M-ALIGN, M-FORMAT, M-PROGRESS</depends>
@@ -106,7 +106,7 @@
       <annotations><fn-run PURPOSE="Выполнить конвейер для файла" /></annotations>
     </M-PIPELINE>
 
-    <M-QUEUE NAME="QueueManager" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-QUEUE NAME="QueueManager" TYPE="CORE_LOGIC" STATUS="implemented">
       <purpose>FIFO asyncio-очередь, concurrency=1 (один GPU-job)</purpose>
       <path>backend/queue_manager.py</path>
       <depends>M-PIPELINE</depends>
@@ -114,7 +114,7 @@
       <annotations><fn-enqueue PURPOSE="Добавить задачу" /><fn-status PURPOSE="queued/processing/tasks" /><fn-cancel PURPOSE="Отмена по id" /></annotations>
     </M-QUEUE>
 
-    <M-SERVER NAME="FastApiServer" TYPE="ENTRY_POINT" STATUS="planned">
+    <M-SERVER NAME="FastApiServer" TYPE="ENTRY_POINT" STATUS="implemented">
       <purpose>FastAPI: lifespan, маршруты, WS, auth, CORS, bind 127.0.0.1</purpose>
       <path>backend/server.py</path>
       <depends>M-AUTH, M-QUEUE, M-MODELS, M-PROGRESS, M-BACKEND-CONFIG, M-SCHEMAS</depends>
