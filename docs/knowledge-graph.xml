@@ -129,6 +129,16 @@
       </annotations>
     </M-SERVER>
 
+    <!-- ===================== SHARED (TypeScript) ===================== -->
+
+    <M-SHARED NAME="SharedContracts" TYPE="UTILITY" STATUS="planned">
+      <purpose>Общий TS-контракт electron+renderer: IPC-каналы+типы, AppConfig, BackendInfo, события, зеркало backend-DTO</purpose>
+      <path>src/shared/</path>
+      <depends>none</depends>
+      <verification-ref>V-M-SHARED</verification-ref>
+      <annotations><export-IPC_CHANNELS PURPOSE="белый список каналов" /><export-AppConfig PURPOSE="конфиг" /><export-BackendInfo PURPOSE="порт+токен+url" /><export-WSMessage PURPOSE="union прогресса" /></annotations>
+    </M-SHARED>
+
     <!-- ===================== ELECTRON MAIN (TypeScript) ===================== -->
 
     <M-CONFIG-STORE NAME="ConfigStore" TYPE="DATA_LAYER" STATUS="planned">
@@ -325,6 +335,12 @@
     <CrossLink from="M-ONBOARDING" to="M-API-CLIENT" relation="checks-health" />
 
     <!-- Cross-process -->
+    <CrossLink from="M-PRELOAD" to="M-SHARED" relation="uses-types" />
+    <CrossLink from="M-IPC" to="M-SHARED" relation="uses-types" />
+    <CrossLink from="M-CONFIG-STORE" to="M-SHARED" relation="uses-types" />
+    <CrossLink from="M-PY-MANAGER" to="M-SHARED" relation="uses-types" />
+    <CrossLink from="M-API-CLIENT" to="M-SHARED" relation="uses-types" />
+    <CrossLink from="M-STORES" to="M-SHARED" relation="uses-types" />
     <CrossLink from="M-API-CLIENT" to="M-SERVER" relation="http-ws-to-backend" />
     <CrossLink from="M-PY-MANAGER" to="M-SERVER" relation="spawns" />
     <CrossLink from="M-IPC" to="M-PRELOAD" relation="bridged-by" />

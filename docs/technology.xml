@@ -108,4 +108,18 @@
       <alt reason="CTranslate2 не покрывает диаризацию; pyannote всё равно тянет полный torch CUDA — размер не уменьшить">отказ от torch ради размера</alt>
     </rejected-alternatives>
   </Packaging>
+
+  <CrossProcess>
+    <contract-home>src/shared/ (M-SHARED): имена IPC-каналов + их типы, AppConfig, BackendInfo, события, зеркало backend-DTO. Импортируется и electron/, и src/. Детали — docs/IMPLEMENTATION_PLAN.md §1.5-1.7.</contract-home>
+    <auth-token>backendToken = crypto.randomBytes(32).hex, генерится M-PY-MANAGER, живёт в памяти main; авторизует все HTTP/WS renderer→backend. В backend идёт через env BACKEND_TOKEN (НЕ argv). Renderer получает токен+порт через IPC backend:get-info.</auth-token>
+    <hf-token>HF-токен хранится зашифрованно (safeStorage) в M-CONFIG-STORE; renderer его НЕ получает; в backend идёт через env HUGGINGFACE_HUB_TOKEN при spawn.</hf-token>
+    <cors-origin>dev: http://localhost:5173; prod: app:// (M-MAIN регистрирует кастомный протокол и грузит app://index.html). Оба origin в allowlist backend; file:// в prod НЕ использовать.</cors-origin>
+    <port>Свободный порт (net bind 127.0.0.1:0) или config.preferredPort; backend bind строго 127.0.0.1.</port>
+    <bundled-python>dev: &lt;repo&gt;/.venv + cwd=repo; prod: process.resourcesPath/python + cwd=resourcesPath (backend/ в extraResources). Запуск: python -m uvicorn backend.server:app.</bundled-python>
+  </CrossProcess>
+
+  <KnownRefinements>
+    <R-1 phase="Phase-6">POST /api/models/download сделать фоновой задачей + WS-канал model:&lt;name&gt; + ответ 202; сейчас синхронный/блокирующий. Затрагивает M-MODELS/M-SERVER, обновить V-M-MODELS.</R-1>
+    <R-2 phase="Phase-5">BatchView обновляет очередь поллингом GET /api/queue/status (~2с) + событие watcher:new-file; реалтайм-пуш очереди не требуется в v1.</R-2>
+  </KnownRefinements>
 </TechnologyStack>

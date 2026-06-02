@@ -238,6 +238,27 @@
       <notes><note-1>bind 127.0.0.1. При cuda_available=false — health status=error, обработка не стартует.</note-1></notes>
     </M-SERVER>
 
+    <!-- ===================== SHARED (TypeScript, общий для main и renderer) ===================== -->
+
+    <M-SHARED NAME="SharedContracts" TYPE="UTILITY" LAYER="0" ORDER="0" STATUS="planned">
+      <contract>
+        <purpose>Единый TS-контракт, общий для electron/ и src/: имена IPC-каналов и их типы, AppConfig, BackendInfo, события, зеркало backend-DTO (TranscriptSegment, TaskInfo, WSMessage, ...).</purpose>
+        <inputs><param name="none" type="—" /></inputs>
+        <outputs><param name="contract" type="types + channel constants" /></outputs>
+      </contract>
+      <interface>
+        <export-IPC_CHANNELS PURPOSE="as const белый список каналов" />
+        <export-AppConfig PURPOSE="Тип конфига приложения" />
+        <export-BackendInfo PURPOSE="{baseUrl, wsBaseUrl, token, port, running}" />
+        <export-WSMessage PURPOSE="Discriminated union прогресса (зеркало websocket_manager.py)" />
+        <export-dto PURPOSE="TranscriptSegment/TranscriptionResult/TaskInfo/AvailableModels/HealthStatus" />
+      </interface>
+      <depends>none</depends>
+      <target><source>src/shared/</source><tests>tests/frontend/shared.test.ts</tests></target>
+      <verification-ref>V-M-SHARED</verification-ref>
+      <notes><note-1>Источник правды по форме DTO — backend/models.py; при расхождении правит контроллер. Детали — docs/IMPLEMENTATION_PLAN.md §1.5-1.7.</note-1></notes>
+    </M-SHARED>
+
     <!-- ===================== ELECTRON MAIN (TypeScript) ===================== -->
 
     <M-CONFIG-STORE NAME="ConfigStore" TYPE="DATA_LAYER" LAYER="0" ORDER="3" STATUS="planned">
@@ -251,7 +272,7 @@
         <export-setConfig PURPOSE="Записать значение" />
         <export-getSecretHfToken PURPOSE="Достать токен из защищённого хранилища" />
       </interface>
-      <depends>none</depends>
+      <depends>M-SHARED</depends>
       <target><source>electron/config-store.ts</source><tests>tests/main/config-store.test.ts</tests></target>
       <verification-ref>V-M-CONFIG-STORE</verification-ref>
       <notes><note-1>HF-токен не пишется в открытый JSON; история без полных текстов.</note-1></notes>
@@ -269,7 +290,7 @@
         <export-stop PURPOSE="Graceful shutdown (SIGTERM to SIGKILL)" />
         <export-getStatus PURPOSE="running/port" />
       </interface>
-      <depends>M-CONFIG-STORE</depends>
+      <depends>M-CONFIG-STORE, M-SHARED</depends>
       <target><source>electron/python-manager.ts</source><tests>tests/main/python-manager.test.ts</tests></target>
       <observability><log-prefix>[PyManager]</log-prefix><critical-block>BLOCK_SPAWN_BACKEND</critical-block></observability>
       <verification-ref>V-M-PY-MANAGER</verification-ref>
@@ -312,7 +333,7 @@
         <outputs><param name="result" type="unknown" /></outputs>
       </contract>
       <interface><export-registerIpc PURPOSE="Зарегистрировать белый список каналов" /></interface>
-      <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER</depends>
+      <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SHARED</depends>
       <target><source>electron/ipc-handlers.ts</source><tests>tests/main/ipc.test.ts</tests></target>
       <verification-ref>V-M-IPC</verification-ref>
     </M-IPC>
@@ -324,7 +345,7 @@
         <outputs><param name="window.electron" type="ElectronApi" /></outputs>
       </contract>
       <interface><export-electronApi PURPOSE="Типобезопасный мост IPC" /></interface>
-      <depends>none</depends>
+      <depends>M-SHARED</depends>
       <target><source>electron/preload.ts</source><tests>tests/main/preload.test.ts</tests></target>
       <verification-ref>V-M-PRELOAD</verification-ref>
     </M-PRELOAD>
@@ -382,7 +403,7 @@
         <export-useBatchStore PURPOSE="Очередь и история" />
         <export-useBackendStore PURPOSE="Статус backend/GPU" />
       </interface>
-      <depends>none</depends>
+      <depends>M-SHARED</depends>
       <target><source>src/stores/</source><tests>tests/frontend/stores.test.ts</tests></target>
       <verification-ref>V-M-STORES</verification-ref>
     </M-STORES>
@@ -398,7 +419,7 @@
         <export-api PURPOSE="HTTP-запросы к backend с токеном" />
         <export-useWebSocket PURPOSE="WS прогресса с reconnect" />
       </interface>
-      <depends>M-STORES</depends>
+      <depends>M-STORES, M-SHARED</depends>
       <target><source>src/lib/api.ts</source><tests>tests/frontend/api.test.ts</tests></target>
       <observability><log-prefix>[ApiClient]</log-prefix><critical-block>BLOCK_WS_RECONNECT</critical-block></observability>
       <verification-ref>V-M-API-CLIENT</verification-ref>
@@ -549,9 +570,11 @@
       <step-1 module="—" status="pending">grace-init, grace-plan, grace-verification</step-1>
     </Phase-0>
     <Phase-1 name="Каркас Electron+React" status="pending">
-      <goal>Сборка electron-vite, Tailwind, shadcn/ui, типы</goal>
-      <step-1 module="M-UI" status="pending" verification="V-M-UI">UI-примитивы</step-1>
-      <step-2 module="M-I18N" status="pending" verification="V-M-I18N">i18n ru/en</step-2>
+      <goal>Сборка electron-vite, Tailwind, shadcn/ui, общий контракт, типы</goal>
+      <step-1 module="—" status="pending">Скаффолд: electron-vite + package.json + tsconfig + vitest + tailwind (PKG-SCAFFOLD)</step-1>
+      <step-2 module="M-SHARED" status="pending" verification="V-M-SHARED">Общий контракт (IPC/AppConfig/DTO)</step-2>
+      <step-3 module="M-UI" status="pending" verification="V-M-UI">UI-примитивы</step-3>
+      <step-4 module="M-I18N" status="pending" verification="V-M-I18N">i18n ru/en</step-4>
     </Phase-1>
     <Phase-2 name="Backend Core" status="done">
       <goal>FastAPI, auth, pipeline без чанкинга, очередь, WS — реализовано, 45 тестов зелёные (1 skip: ffmpeg-бинаря нет в CI)</goal>

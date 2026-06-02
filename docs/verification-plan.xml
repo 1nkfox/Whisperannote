@@ -358,6 +358,17 @@
       <scenarios><scenario-1 kind="success">ru — основной; en — fallback; нет отсутствующих ключей.</scenario-1></scenarios>
     </V-M-I18N>
 
+    <V-M-SHARED MODULE="M-SHARED" PRIORITY="high">
+      <test-files><file>tests/frontend/shared.test.ts</file></test-files>
+      <module-checks><check-1>npm run typecheck</check-1><check-2>npm test -- tests/frontend/shared.test.ts</check-2></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">IPC_CHANNELS — уникальные строковые литералы (as const), без дублей.</scenario-1>
+        <scenario-2 kind="success">WSMessage exhaustive: switch по type покрывает stage/progress/log/complete/error.</scenario-2>
+        <scenario-3 kind="success">DTO-типы совпадают по полям с backend/models.py (snake_case).</scenario-3>
+      </scenarios>
+      <required-trace-assertions><assertion-1>Ни один канал не используется в preload/ipc вне списка IPC_CHANNELS.</assertion-1></required-trace-assertions>
+    </V-M-SHARED>
+
     <V-M-STORES MODULE="M-STORES" PRIORITY="medium">
       <test-files><file>tests/frontend/stores.test.ts</file></test-files>
       <module-checks><check-1>npm test -- tests/frontend/stores.test.ts</check-1></module-checks>
