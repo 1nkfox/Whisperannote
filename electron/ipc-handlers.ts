@@ -2,8 +2,8 @@
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Register whitelisted IPC handlers for config, dialog, backend, and watcher channels.
-//   SCOPE: ipcMain.handle for each IPC_CHANNELS entry; watcher stubs until Phase-5.
-//   DEPENDS: M-PY-MANAGER, M-CONFIG-STORE, M-SHARED, electron (dialog, ipcMain, shell)
+//   SCOPE: ipcMain.handle for each IPC_CHANNELS entry; watcher lifecycle bridges new-file events to renderer.
+//   DEPENDS: M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SHARED, electron (dialog, ipcMain, shell)
 //   LINKS: M-IPC, V-M-IPC
 //   ROLE: INTEGRATION
 //   MAP_MODE: EXPORTS
@@ -24,6 +24,7 @@ import {
   setConfig,
   setSecretHfToken
 } from './config-store'
+import { getWatcherStatus, startWatcher, stopWatcher } from './file-watcher'
 import { getInfo, getStatus, restart, start, stop } from './python-manager'
 
 // START_CONTRACT: registerIpc
@@ -36,14 +37,15 @@ import { getInfo, getStatus, restart, start, stop } from './python-manager'
 export function registerIpc(hfToken?: string): void {
   // START_BLOCK_REGISTER
   for (const channel of IPC_CHANNELS) {
-    ipcMain.handle(channel, (_event, request: unknown) =>
-      handleIpc(channel as IpcChannel, request, hfToken)
+    ipcMain.handle(channel, (event, request: unknown) =>
+      handleIpc(event, channel as IpcChannel, request, hfToken)
     )
   }
   // END_BLOCK_REGISTER
 }
 
 async function handleIpc(
+  event: Electron.IpcMainInvokeEvent,
   channel: IpcChannel,
   request: unknown,
   hfToken?: string
@@ -98,16 +100,22 @@ async function handleIpc(
       return { ok: true as const }
     }
 
-    // ---------- Watcher (stubs until Phase-5) ----------
-    case 'watcher:start':
-      // Stub: watcher will be wired in Phase-5 M-WATCHER
+    // ---------- Watcher ----------
+    case 'watcher:start': {
+      const { folder } = request as IpcRequestMap['watcher:start']
+      await startWatcher({
+        folder,
+        onFile: (payload) => event.sender.send('watcher:new-file', payload)
+      })
       return { ok: true as const }
+    }
 
     case 'watcher:stop':
+      await stopWatcher()
       return { ok: true as const }
 
     case 'watcher:get-status':
-      return { watching: false }
+      return getWatcherStatus()
 
     // ---------- Shell ----------
     case 'shell:open-path': {

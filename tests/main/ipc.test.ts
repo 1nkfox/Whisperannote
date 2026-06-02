@@ -3,7 +3,7 @@
 // START_MODULE_CONTRACT
 //   PURPOSE: Test IPC handler registration, whitelist enforcement, and per-channel logic.
 //   SCOPE: Mocked electron dialog/ipcMain/shell and config-store/python-manager for Vitest.
-//   DEPENDS: electron/ipc-handlers, vitest
+//   DEPENDS: electron/ipc-handlers, electron/file-watcher, vitest
 //   LINKS: M-IPC, V-M-IPC
 //   ROLE: TEST
 //   MAP_MODE: LOCALS
@@ -24,6 +24,9 @@ const {
   mockHasHfToken,
   mockSetSecretHfToken,
   mockClearHfToken,
+  mockStartWatcher,
+  mockStopWatcher,
+  mockGetWatcherStatus,
   mockGetInfo,
   mockGetStatus,
   mockRestart
@@ -36,6 +39,9 @@ const {
   mockHasHfToken: vi.fn(),
   mockSetSecretHfToken: vi.fn(),
   mockClearHfToken: vi.fn(),
+  mockStartWatcher: vi.fn(),
+  mockStopWatcher: vi.fn(),
+  mockGetWatcherStatus: vi.fn(),
   mockGetInfo: vi.fn(),
   mockGetStatus: vi.fn(),
   mockRestart: vi.fn()
@@ -62,6 +68,12 @@ vi.mock('../../electron/python-manager', () => ({
   restart: mockRestart,
   start: vi.fn(),
   stop: vi.fn()
+}))
+
+vi.mock('../../electron/file-watcher', () => ({
+  startWatcher: mockStartWatcher,
+  stopWatcher: mockStopWatcher,
+  getWatcherStatus: mockGetWatcherStatus
 }))
 
 import { registerIpc } from '../../electron/ipc-handlers'
@@ -144,6 +156,32 @@ describe('M-IPC', () => {
 
     expect(mockOpenPath).toHaveBeenCalledWith('/output')
     expect(result).toEqual({ ok: true })
+  })
+
+  it('watcher:start starts watcher and forwards new-file events to renderer', async () => {
+    const send = vi.fn()
+    registerIpc()
+    mockStartWatcher.mockResolvedValue(undefined)
+
+    const handler = getHandler('watcher:start')
+    const result = await handler({ sender: { send } }, { folder: 'H:/audio' })
+
+    expect(result).toEqual({ ok: true })
+    expect(mockStartWatcher).toHaveBeenCalledWith({ folder: 'H:/audio', onFile: expect.any(Function) })
+
+    const onFile = mockStartWatcher.mock.calls[0][0].onFile as (payload: unknown) => void
+    onFile({ filePath: 'H:/audio/a.wav', fileName: 'a.wav' })
+    expect(send).toHaveBeenCalledWith('watcher:new-file', { filePath: 'H:/audio/a.wav', fileName: 'a.wav' })
+  })
+
+  it('watcher:get-status returns watcher status', async () => {
+    registerIpc()
+    mockGetWatcherStatus.mockReturnValue({ watching: true, folder: 'H:/audio' })
+
+    const handler = getHandler('watcher:get-status')
+    const result = await handler({ sender: { send: vi.fn() } }, undefined)
+
+    expect(result).toEqual({ watching: true, folder: 'H:/audio' })
   })
 })
 
