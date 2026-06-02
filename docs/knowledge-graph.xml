@@ -268,12 +268,12 @@
       <annotations><export-BatchView PURPOSE="Вкладка мониторинга" /></annotations>
     </M-BATCH>
 
-    <M-SETTINGS NAME="SettingsView" TYPE="UI_COMPONENT" STATUS="planned">
+    <M-SETTINGS NAME="SettingsView" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>Модель, вывод, HF-токен, общие (язык/тема/порт)</purpose>
       <path>src/components/settings/</path>
       <depends>M-STORES, M-UI</depends>
       <verification-ref>V-M-SETTINGS</verification-ref>
-      <annotations><export-SettingsView PURPOSE="Вкладка настроек" /></annotations>
+      <annotations><export-SettingsView PURPOSE="Вкладка настроек" /><fn-SettingsView PURPOSE="Persisted AppConfig form with secure HF-token IPC" /></annotations>
     </M-SETTINGS>
 
     <M-ONBOARDING NAME="Onboarding" TYPE="UI_COMPONENT" STATUS="planned">

@@ -480,7 +480,7 @@
       <verification-ref>V-M-BATCH</verification-ref>
     </M-BATCH>
 
-    <M-SETTINGS NAME="SettingsView" TYPE="UI_COMPONENT" LAYER="3" ORDER="4" STATUS="planned">
+    <M-SETTINGS NAME="SettingsView" TYPE="UI_COMPONENT" LAYER="3" ORDER="4" STATUS="implemented">
       <contract>
         <purpose>ModelSettings (модель; GPU фиксирован), OutputSettings, HfTokenSettings, GeneralSettings (язык, тема, порт).</purpose>
         <inputs><param name="settings" type="AppConfig" /></inputs>
@@ -618,7 +618,7 @@
     </Phase-5>
     <Phase-6 name="Настройки+онбординг+i18n" status="pending">
       <goal>Настройки, HF-токен, загрузка моделей, темы</goal>
-      <step-1 module="M-SETTINGS" status="pending" verification="V-M-SETTINGS">Настройки</step-1>
+      <step-1 module="M-SETTINGS" status="done" verification="V-M-SETTINGS">Настройки</step-1>
       <step-2 module="M-ONBOARDING" status="pending" verification="V-M-ONBOARDING">Онбординг</step-2>
     </Phase-6>
     <Phase-7 name="Экспорт+ошибки+тесты" status="pending">

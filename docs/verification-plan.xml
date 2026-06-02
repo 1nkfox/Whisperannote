@@ -416,7 +416,11 @@
     <V-M-SETTINGS MODULE="M-SETTINGS" PRIORITY="low">
       <test-files><file>tests/frontend/settings.test.tsx</file></test-files>
       <module-checks><check-1>npm test -- tests/frontend/settings.test.tsx</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">Настройки персистентны; устройство показано как GPU (фиксировано).</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">Настройки персистентны; устройство показано как GPU (фиксировано).</scenario-1>
+        <scenario-2 kind="success">HF-токен передаётся только через config:set-hf-token; renderer store хранит только hasHfToken.</scenario-2>
+        <scenario-3 kind="success">Форматы вывода и модель сохраняются через config:set без изменения device=cuda.</scenario-3>
+      </scenarios>
     </V-M-SETTINGS>
 
     <V-M-PACKAGING MODULE="M-PACKAGING" PRIORITY="high">
