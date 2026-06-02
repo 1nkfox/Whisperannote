@@ -445,7 +445,7 @@
         <outputs><param name="taskId" type="string" /></outputs>
       </contract>
       <interface><export-UploadView PURPOSE="Вкладка ручной транскрибации" /></interface>
-      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <depends>M-STORES, M-SHARED, M-UI</depends>
       <target><source>src/components/upload/</source><tests>tests/frontend/upload.test.tsx</tests></target>
       <verification-ref>V-M-UPLOAD</verification-ref>
     </M-UPLOAD>
@@ -601,7 +601,7 @@
       <step-4 module="M-IPC" status="done" verification="V-M-IPC">IPC</step-4>
       <step-5 module="M-MAIN" status="done" verification="V-M-MAIN">Точка входа</step-5>
     </Phase-3>
-    <Phase-4 name="UI транскрибация" status="pending">
+    <Phase-4 name="UI транскрибация" status="done">
       <goal>Ручная транскрибация end-to-end</goal>
       <step-1 module="M-STORES" status="done" verification="V-M-STORES">Сторы</step-1>
       <step-2 module="M-API-CLIENT" status="done" verification="V-M-API-CLIENT">HTTP+WS reconnect</step-2>

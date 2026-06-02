@@ -247,7 +247,7 @@
     <M-UPLOAD NAME="UploadView" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>Drag-and-drop, QuickSettings, запуск, ProgressCard</purpose>
       <path>src/components/upload/</path>
-      <depends>M-API-CLIENT, M-STORES, M-UI</depends>
+      <depends>M-STORES, M-SHARED, M-UI</depends>
       <verification-ref>V-M-UPLOAD</verification-ref>
       <annotations><export-UploadView PURPOSE="Вкладка транскрибации" /></annotations>
     </M-UPLOAD>
@@ -329,8 +329,9 @@
     <CrossLink from="M-API-CLIENT" to="M-STORES" relation="updates-state" />
     <CrossLink from="M-APP-SHELL" to="M-STORES" relation="reads-state" />
     <CrossLink from="M-UPLOAD" to="M-API-CLIENT" relation="calls-backend" />
-    <CrossLink from="M-RESULTS" to="M-API-CLIENT" relation="calls-backend" />
     <CrossLink from="M-RESULTS" to="M-STORES" relation="reads-speaker-names" />
+    <CrossLink from="M-RESULTS" to="M-SHARED" relation="uses-types" />
+    <CrossLink from="M-RESULTS" to="M-UI" relation="uses-components" />
     <CrossLink from="M-BATCH" to="M-API-CLIENT" relation="calls-backend" />
     <CrossLink from="M-ONBOARDING" to="M-API-CLIENT" relation="checks-health" />
 
