@@ -244,7 +244,7 @@
       <annotations><export-AppShell PURPOSE="Layout" /></annotations>
     </M-APP-SHELL>
 
-    <M-UPLOAD NAME="UploadView" TYPE="UI_COMPONENT" STATUS="planned">
+    <M-UPLOAD NAME="UploadView" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>Drag-and-drop, QuickSettings, запуск, ProgressCard</purpose>
       <path>src/components/upload/</path>
       <depends>M-API-CLIENT, M-STORES, M-UI</depends>

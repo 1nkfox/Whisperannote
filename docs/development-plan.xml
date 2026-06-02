@@ -438,7 +438,7 @@
       <verification-ref>V-M-APP-SHELL</verification-ref>
     </M-APP-SHELL>
 
-    <M-UPLOAD NAME="UploadView" TYPE="UI_COMPONENT" LAYER="3" ORDER="1" STATUS="planned">
+    <M-UPLOAD NAME="UploadView" TYPE="UI_COMPONENT" LAYER="3" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Drag-and-drop, file picker, QuickSettings (модель, num_speakers), запуск транскрибации, ProgressCard.</purpose>
         <inputs><param name="files" type="File[]" /></inputs>
@@ -606,7 +606,7 @@
       <step-1 module="M-STORES" status="done" verification="V-M-STORES">Сторы</step-1>
       <step-2 module="M-API-CLIENT" status="done" verification="V-M-API-CLIENT">HTTP+WS reconnect</step-2>
       <step-3 module="M-APP-SHELL" status="done" verification="V-M-APP-SHELL">Каркас</step-3>
-      <step-4 module="M-UPLOAD" status="pending" verification="V-M-UPLOAD">Загрузка</step-4>
+      <step-4 module="M-UPLOAD" status="done" verification="V-M-UPLOAD">Загрузка</step-4>
       <step-5 module="M-RESULTS" status="pending" verification="V-M-RESULTS">Результаты+спикеры</step-5>
     </Phase-4>
     <Phase-5 name="Автообработка" status="pending">
