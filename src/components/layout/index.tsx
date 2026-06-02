@@ -116,13 +116,13 @@ export function AppShell({ activeTab = 'transcribe', onTabChange, children }: Ap
 
           <footer className="border-t border-zinc-200 bg-white px-4 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={backendStatus.healthy ? 'success' : 'secondary'}>
+              <Badge variant={backendStatus.healthy ? 'success' : 'outline'}>
                 Backend: {backendStatus.healthy ? 'online' : 'offline'}
               </Badge>
-              <Badge variant={health?.cuda_available ? 'success' : 'destructive'}>
+              <Badge variant={health?.cuda_available ? 'success' : 'warning'}>
                 GPU: {health?.cuda_available ? `${health.cuda_devices} CUDA` : 'unknown'}
               </Badge>
-              <Badge variant={watcher.watching ? 'success' : 'secondary'}>
+              <Badge variant={watcher.watching ? 'success' : 'outline'}>
                 Watcher: {watcher.watching ? 'on' : 'off'}
               </Badge>
               <Separator className="hidden h-4 w-px sm:block" />
