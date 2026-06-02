@@ -27,12 +27,19 @@ Thumbs.db
 
 # Node
 node_modules/
+*.tsbuildinfo
+!package.json
+!package-lock.json
+!tsconfig*.json
 
 # Project outputs
 *.wav
 *.mp3
 *.mp4
 *.json
+!package.json
+!package-lock.json
+!tsconfig*.json
 *.txt
 !requirements.txt
 *.srt
