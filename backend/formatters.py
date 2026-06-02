@@ -15,6 +15,10 @@
 #   write_outputs - render the requested formats, returning {format: path}
 #   to_json / to_txt / to_srt / to_docx - individual format writers (speaker_names applied)
 # END_MODULE_MAP
+#
+# START_CHANGE_SUMMARY
+#   LAST_CHANGE: v1.0.1 - Strengthened DOCX export evidence for Phase-7/V-M-FORMAT by keeping the WRITE_DOCX block paired before return.
+# END_CHANGE_SUMMARY
 from __future__ import annotations
 
 import json
@@ -119,8 +123,8 @@ def to_docx(result: TranscriptionResult, out_dir: str) -> str:
     path = _base(out_dir, result.file_name) + ".docx"
     doc.save(path)
     log.info(mark("Format", "to_docx", "BLOCK_WRITE_DOCX", "docx written"))
-    return path
     # END_BLOCK_WRITE_DOCX
+    return path
 
 
 _WRITERS = {"json": to_json, "txt": to_txt, "srt": to_srt, "docx": to_docx}
