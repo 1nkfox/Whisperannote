@@ -1,5 +1,5 @@
 // FILE: tests/frontend/api.test.ts
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Verify M-API-CLIENT authenticated HTTP requests and reconnect/resubscribe WebSocket behavior.
 //   SCOPE: Deterministic frontend tests with fetch/WebSocket fakes; no network or backend process.
@@ -13,7 +13,7 @@
 //   FakeWebSocket - controllable WebSocket test double.
 //   createFetch - authenticated fetch test double.
 //   Probe - React component that exercises useWebSocket.
-//   describe(M-API-CLIENT) - auth, unauthorized, upload, reconnect, and resubscribe checks.
+//   describe(M-API-CLIENT) - auth, unauthorized, upload, model download, reconnect, and resubscribe checks.
 // END_MODULE_MAP
 import { act, render, screen } from '@testing-library/react'
 import React from 'react'
@@ -178,6 +178,24 @@ describe('M-API-CLIENT contracts', () => {
     })
   })
 
+  it('starts model download through JSON models endpoint', async () => {
+    const client = createApiClient({
+      baseUrl: 'http://127.0.0.1:8777',
+      token: 'secret-token',
+      fetchImpl: createFetch([Response.json({ status: 'completed', model: 'faster-whisper-large-v3' })])
+    })
+
+    await expect(client.downloadModel('faster-whisper-large-v3')).resolves.toEqual({
+      status: 'completed',
+      model: 'faster-whisper-large-v3'
+    })
+
+    expect(fetchCalls[0]?.url).toBe('http://127.0.0.1:8777/api/models/download')
+    expect(fetchCalls[0]?.init.method).toBe('POST')
+    expect(fetchCalls[0]?.init.headers).toMatchObject({ Authorization: 'Bearer secret-token' })
+    expect(JSON.parse(String(fetchCalls[0]?.init.body))).toEqual({ model: 'faster-whisper-large-v3' })
+  })
+
   it('reconnects the progress websocket and resubscribes by queue status', async () => {
     vi.useFakeTimers()
     let resolveQueueStatus: ((tasks: TaskInfo[]) => void) | null = null
@@ -223,5 +241,5 @@ describe('M-API-CLIENT contracts', () => {
 })
 
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: v1.1.0 - Added queue enqueue coverage for Phase-5 batch auto-processing.
+//   LAST_CHANGE: v1.2.0 - Added model download endpoint coverage for Phase-6 onboarding.
 // END_CHANGE_SUMMARY

@@ -83,8 +83,18 @@ export const resources = {
       },
       onboarding: {
         title: 'Первый запуск',
+        description: 'Проверьте CUDA, сохраните HF-токен и загрузите модели перед первой транскрибацией.',
         checkEnvironment: 'Проверка FFmpeg и CUDA',
-        downloadModels: 'Загрузка моделей'
+        downloadModels: 'Загрузка моделей',
+        downloadFailed: 'Не удалось загрузить модель',
+        modelsReady: 'Модели готовы',
+        waitingProgress: 'Ожидание прогресса',
+        startDownload: 'Загрузить модель',
+        healthFailed: 'Не удалось проверить окружение',
+        checkNow: 'Проверить окружение',
+        ffmpegReady: 'Нет ошибки от backend health',
+        modelsMissing: 'Модель ещё не загружена',
+        finish: 'Завершить первый запуск'
       },
       errors: {
         cudaUnavailable: 'CUDA GPU недоступен. CPU-режим не поддерживается.',
@@ -159,8 +169,18 @@ export const resources = {
       },
       onboarding: {
         title: 'First run',
+        description: 'Check CUDA, save the HF token, and download models before the first transcription.',
         checkEnvironment: 'Checking FFmpeg and CUDA',
-        downloadModels: 'Downloading models'
+        downloadModels: 'Downloading models',
+        downloadFailed: 'Failed to download model',
+        modelsReady: 'Models are ready',
+        waitingProgress: 'Waiting for progress',
+        startDownload: 'Download model',
+        healthFailed: 'Failed to check environment',
+        checkNow: 'Check environment',
+        ffmpegReady: 'No error reported by backend health',
+        modelsMissing: 'Model has not been downloaded yet',
+        finish: 'Finish first run'
       },
       errors: {
         cudaUnavailable: 'CUDA GPU is unavailable. CPU mode is not supported.',

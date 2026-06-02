@@ -1,5 +1,5 @@
 // FILE: src/lib/api.ts
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Provide authenticated backend HTTP calls and a reconnecting progress WebSocket hook for the renderer.
 //   SCOPE: Browser fetch/WebSocket integration, queue resync into stores, and typed API errors; no Electron IPC persistence.
@@ -11,7 +11,7 @@
 //
 // START_MODULE_MAP
 //   ApiClientError - typed frontend API error with UNAUTHORIZED/NETWORK codes.
-//   createApiClient / api - authenticated HTTP methods for backend endpoints including queue enqueue.
+//   createApiClient / api - authenticated HTTP methods for backend endpoints including queue enqueue and model download.
 //   useWebSocket - progress WebSocket hook with reconnect and queue resubscribe.
 // END_MODULE_MAP
 import { useEffect, useRef, useState } from 'react'
@@ -62,6 +62,7 @@ export type QueueFileRequest = {
 export type ApiClient = {
   health: () => Promise<HealthStatus>
   models: () => Promise<AvailableModels>
+  downloadModel: (model: string) => Promise<{ status: string; model: string }>
   transcribe: (request: TranscribeUploadRequest) => Promise<TaskInfo>
   enqueueFile: (request: QueueFileRequest) => Promise<TaskInfo>
   queueStatus: () => Promise<TaskInfo[]>
@@ -135,6 +136,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
   return {
     health: () => requestJson<HealthStatus>('/api/health'),
     models: () => requestJson<AvailableModels>('/api/models'),
+    downloadModel: (model) => requestJson<{ status: string; model: string }>('/api/models/download', {
+      method: 'POST',
+      body: JSON.stringify({ model })
+    }),
     transcribe: (request) => {
       const form = new FormData()
       form.append('file', request.file)
@@ -278,5 +283,5 @@ export function useWebSocket(options: UseWebSocketOptions): WebSocketState {
 }
 
 // START_CHANGE_SUMMARY
-//   LAST_CHANGE: v1.1.0 - Added queue enqueue API for Phase-5 batch auto-processing.
+//   LAST_CHANGE: v1.2.0 - Added model download API for Phase-6 onboarding progress.
 // END_CHANGE_SUMMARY
