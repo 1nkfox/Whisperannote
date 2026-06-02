@@ -1,5 +1,5 @@
 // FILE: src/i18n/resources.ts
-// VERSION: 1.0.0
+// VERSION: 1.1.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Define ru/en translation resources for the renderer i18n foundation.
 //   SCOPE: Phase-1 common navigation, status, upload, settings, onboarding, and error keys.
@@ -26,9 +26,14 @@ export const resources = {
       },
       nav: {
         upload: 'Транскрибация',
+        transcribe: 'Транскрибация',
         results: 'Результаты',
         batch: 'Папка',
         settings: 'Настройки'
+      },
+      theme: {
+        light: 'Светлая',
+        dark: 'Тёмная'
       },
       status: {
         backend: 'Backend',
@@ -46,10 +51,35 @@ export const resources = {
       },
       settings: {
         title: 'Настройки',
+        description: 'GPU закреплён за CUDA; CPU-режим недоступен в этом проекте.',
         language: 'Язык',
         theme: 'Тема',
         outputFolder: 'Папка результатов',
-        hfToken: 'HuggingFace токен'
+        hfToken: 'HuggingFace токен',
+        loadFailed: 'Не удалось загрузить настройки',
+        tokenStatusFailed: 'Не удалось проверить токен',
+        saveFailed: 'Не удалось сохранить настройки',
+        saved: 'Настройки сохранены',
+        noBridge: 'Electron IPC недоступен',
+        tokenRequired: 'Введите HF-токен',
+        tokenSaved: 'HF-токен сохранён',
+        tokenCleared: 'HF-токен удалён',
+        modelTitle: 'Модель и устройство',
+        autoSpeakers: 'Авто',
+        device: 'Устройство',
+        gpuFixed: 'Фиксировано контрактом проекта',
+        outputTitle: 'Результаты',
+        choose: 'Выбрать',
+        outputFormats: 'Форматы вывода',
+        generalTitle: 'Общие',
+        themeSystem: 'Системная',
+        themeLight: 'Светлая',
+        themeDark: 'Тёмная',
+        preferredPort: 'Порт backend',
+        tokenPresent: 'Токен сохранён в защищённом хранилище',
+        tokenMissing: 'Токен ещё не сохранён',
+        saveToken: 'Сохранить токен',
+        clearToken: 'Удалить токен'
       },
       onboarding: {
         title: 'Первый запуск',
@@ -72,9 +102,14 @@ export const resources = {
       },
       nav: {
         upload: 'Transcription',
+        transcribe: 'Transcription',
         results: 'Results',
         batch: 'Folder',
         settings: 'Settings'
+      },
+      theme: {
+        light: 'Light',
+        dark: 'Dark'
       },
       status: {
         backend: 'Backend',
@@ -92,10 +127,35 @@ export const resources = {
       },
       settings: {
         title: 'Settings',
+        description: 'GPU is fixed to CUDA; CPU mode is unavailable in this project.',
         language: 'Language',
         theme: 'Theme',
         outputFolder: 'Output folder',
-        hfToken: 'HuggingFace token'
+        hfToken: 'HuggingFace token',
+        loadFailed: 'Failed to load settings',
+        tokenStatusFailed: 'Failed to check token status',
+        saveFailed: 'Failed to save settings',
+        saved: 'Settings saved',
+        noBridge: 'Electron IPC is unavailable',
+        tokenRequired: 'Enter an HF token',
+        tokenSaved: 'HF token saved',
+        tokenCleared: 'HF token removed',
+        modelTitle: 'Model and device',
+        autoSpeakers: 'Auto',
+        device: 'Device',
+        gpuFixed: 'Fixed by project contract',
+        outputTitle: 'Results',
+        choose: 'Choose',
+        outputFormats: 'Output formats',
+        generalTitle: 'General',
+        themeSystem: 'System',
+        themeLight: 'Light',
+        themeDark: 'Dark',
+        preferredPort: 'Backend port',
+        tokenPresent: 'Token is stored in secure storage',
+        tokenMissing: 'Token has not been saved yet',
+        saveToken: 'Save token',
+        clearToken: 'Remove token'
       },
       onboarding: {
         title: 'First run',
