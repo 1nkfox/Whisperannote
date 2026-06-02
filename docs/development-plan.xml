@@ -261,7 +261,7 @@
 
     <!-- ===================== ELECTRON MAIN (TypeScript) ===================== -->
 
-    <M-CONFIG-STORE NAME="ConfigStore" TYPE="DATA_LAYER" LAYER="0" ORDER="3" STATUS="planned">
+    <M-CONFIG-STORE NAME="ConfigStore" TYPE="DATA_LAYER" LAYER="0" ORDER="3" STATUS="implemented">
       <contract>
         <purpose>Обёртка electron-store: настройки + защищённое хранение HF-токена (safeStorage/keychain).</purpose>
         <inputs><param name="key" type="string" /><param name="value" type="unknown" /></inputs>
@@ -278,7 +278,7 @@
       <notes><note-1>HF-токен не пишется в открытый JSON; история без полных текстов.</note-1></notes>
     </M-CONFIG-STORE>
 
-    <M-PY-MANAGER NAME="PythonManager" TYPE="INTEGRATION" LAYER="1" ORDER="4" STATUS="planned">
+    <M-PY-MANAGER NAME="PythonManager" TYPE="INTEGRATION" LAYER="1" ORDER="4" STATUS="implemented">
       <contract>
         <purpose>Жизненный цикл Python backend: подбор свободного порта, генерация секрет-токена, проброс HF-токена через env, spawn uvicorn, health, рестарт, graceful shutdown, захват логов.</purpose>
         <inputs><param name="port" type="number" /><param name="hfToken" type="string" /></inputs>
@@ -326,7 +326,7 @@
       <verification-ref>V-M-SCHEDULER</verification-ref>
     </M-SCHEDULER>
 
-    <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" LAYER="2" ORDER="1" STATUS="planned">
+    <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" LAYER="2" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Регистрация IPC-обработчиков (select-file/folder, get/set-config, start/stop-backend, статус) через безопасный contextBridge.</purpose>
         <inputs><param name="channel" type="string" /><param name="args" type="unknown[]" /></inputs>
@@ -338,7 +338,7 @@
       <verification-ref>V-M-IPC</verification-ref>
     </M-IPC>
 
-    <M-PRELOAD NAME="Preload" TYPE="INTEGRATION" LAYER="1" ORDER="7" STATUS="planned">
+    <M-PRELOAD NAME="Preload" TYPE="INTEGRATION" LAYER="1" ORDER="7" STATUS="implemented">
       <contract>
         <purpose>contextBridge: безопасный белый список методов Main для renderer.</purpose>
         <inputs><param name="none" type="—" /></inputs>
@@ -350,7 +350,7 @@
       <verification-ref>V-M-PRELOAD</verification-ref>
     </M-PRELOAD>
 
-    <M-MAIN NAME="ElectronMain" TYPE="ENTRY_POINT" LAYER="3" ORDER="1" STATUS="planned">
+    <M-MAIN NAME="ElectronMain" TYPE="ENTRY_POINT" LAYER="3" ORDER="1" STATUS="implemented">
       <contract>
         <purpose>Точка входа Electron: frameless BrowserWindow, инициализация PyManager/Watcher/Scheduler/IPC, жизненный цикл.</purpose>
         <inputs><param name="appEvents" type="Electron.App" /></inputs>
@@ -593,13 +593,13 @@
       <step-13 module="M-SERVER" status="done" verification="V-M-SERVER">Сборка сервера</step-13>
       <note>Реальные модели/GPU и ffmpeg-конвертация валидируются на wave/phase (см. wave-follow-up в V-M-DIARIZE/V-M-TRANSCRIBE и VF-CLEAN-INSTALL).</note>
     </Phase-2>
-    <Phase-3 name="Electron Shell" status="pending">
+    <Phase-3 name="Electron Shell" status="done">
       <goal>Main process, Python manager, IPC, config-store</goal>
-      <step-1 module="M-CONFIG-STORE" status="pending" verification="V-M-CONFIG-STORE">Стор+токен</step-1>
-      <step-2 module="M-PY-MANAGER" status="pending" verification="V-M-PY-MANAGER">Менеджер backend</step-2>
-      <step-3 module="M-PRELOAD" status="pending" verification="V-M-PRELOAD">contextBridge</step-3>
-      <step-4 module="M-IPC" status="pending" verification="V-M-IPC">IPC</step-4>
-      <step-5 module="M-MAIN" status="pending" verification="V-M-MAIN">Точка входа</step-5>
+      <step-1 module="M-CONFIG-STORE" status="done" verification="V-M-CONFIG-STORE">Стор+токен</step-1>
+      <step-2 module="M-PY-MANAGER" status="done" verification="V-M-PY-MANAGER">Менеджер backend</step-2>
+      <step-3 module="M-PRELOAD" status="done" verification="V-M-PRELOAD">contextBridge</step-3>
+      <step-4 module="M-IPC" status="done" verification="V-M-IPC">IPC</step-4>
+      <step-5 module="M-MAIN" status="done" verification="V-M-MAIN">Точка входа</step-5>
     </Phase-3>
     <Phase-4 name="UI транскрибация" status="pending">
       <goal>Ручная транскрибация end-to-end</goal>

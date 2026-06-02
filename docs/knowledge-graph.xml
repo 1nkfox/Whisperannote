@@ -141,7 +141,7 @@
 
     <!-- ===================== ELECTRON MAIN (TypeScript) ===================== -->
 
-    <M-CONFIG-STORE NAME="ConfigStore" TYPE="DATA_LAYER" STATUS="planned">
+    <M-CONFIG-STORE NAME="ConfigStore" TYPE="DATA_LAYER" STATUS="implemented">
       <purpose>electron-store + защищённое хранение HF-токена</purpose>
       <path>electron/config-store.ts</path>
       <depends>none</depends>
@@ -149,7 +149,7 @@
       <annotations><fn-getConfig PURPOSE="Чтение" /><fn-setConfig PURPOSE="Запись" /><fn-getSecretHfToken PURPOSE="Токен из secure store" /></annotations>
     </M-CONFIG-STORE>
 
-    <M-PY-MANAGER NAME="PythonManager" TYPE="INTEGRATION" STATUS="planned">
+    <M-PY-MANAGER NAME="PythonManager" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>Spawn/health/restart backend, free-port, проброс токенов через env</purpose>
       <path>electron/python-manager.ts</path>
       <depends>M-CONFIG-STORE</depends>
@@ -173,7 +173,7 @@
       <annotations><fn-schedule PURPOSE="Запланировать скан" /></annotations>
     </M-SCHEDULER>
 
-    <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" STATUS="planned">
+    <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>Белый список IPC-каналов (файлы, конфиг, backend, статус)</purpose>
       <path>electron/ipc-handlers.ts</path>
       <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER</depends>
@@ -181,7 +181,7 @@
       <annotations><fn-registerIpc PURPOSE="Регистрация каналов" /></annotations>
     </M-IPC>
 
-    <M-PRELOAD NAME="Preload" TYPE="INTEGRATION" STATUS="planned">
+    <M-PRELOAD NAME="Preload" TYPE="INTEGRATION" STATUS="implemented">
       <purpose>contextBridge: безопасный мост Main to renderer</purpose>
       <path>electron/preload.ts</path>
       <depends>none</depends>
@@ -189,7 +189,7 @@
       <annotations><export-electronApi PURPOSE="window.electron API" /></annotations>
     </M-PRELOAD>
 
-    <M-MAIN NAME="ElectronMain" TYPE="ENTRY_POINT" STATUS="planned">
+    <M-MAIN NAME="ElectronMain" TYPE="ENTRY_POINT" STATUS="implemented">
       <purpose>Точка входа: окно, инициализация менеджеров, жизненный цикл</purpose>
       <path>electron/main.ts</path>
       <depends>M-IPC, M-PY-MANAGER, M-WATCHER, M-SCHEDULER, M-PRELOAD</depends>
