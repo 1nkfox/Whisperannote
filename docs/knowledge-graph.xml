@@ -252,7 +252,7 @@
       <annotations><export-UploadView PURPOSE="Вкладка транскрибации" /></annotations>
     </M-UPLOAD>
 
-    <M-RESULTS NAME="ResultsView" TYPE="UI_COMPONENT" STATUS="planned">
+    <M-RESULTS NAME="ResultsView" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>Виртуализированный список, переименование спикеров, экспорт</purpose>
       <path>src/components/transcription/</path>
       <depends>M-API-CLIENT, M-STORES, M-UI</depends>
