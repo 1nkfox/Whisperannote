@@ -11,13 +11,13 @@
 #
 # START_MODULE_MAP
 #   build_venv - creates .venv with torch cu124 installed before pyannote and validates GPU imports.
-#   package - stages backend and .venv sidecar then invokes npm package flow.
+#   package - stages .venv as python sidecar, validates backend resources, then invokes npm package flow.
 #   Invoke-Checked - runs native commands with stable packaging failure codes.
 #   Write-PackagingLog - emits grep-stable GRACE verification markers.
 # END_MODULE_MAP
 #
 # START_CHANGE_SUMMARY
-#   LAST_CHANGE: v1.0.0 - Added Phase 8 GPU venv build script with explicit CUDA wheel ordering and validation markers.
+#   LAST_CHANGE: v1.1.0 - Added electron-builder sidecar staging for packaged Python and backend resources.
 # END_CHANGE_SUMMARY
 
 [CmdletBinding()]
@@ -30,6 +30,8 @@ param(
   [string]$TorchaudioVersion = '2.6.0',
   [string]$VenvPath = '',
   [string]$StagePath = '',
+  [string]$OutputPath = '',
+  [switch]$DirOnly,
   [switch]$SkipGpuAssert
 )
 
@@ -40,6 +42,9 @@ if (-not $VenvPath) {
 }
 if (-not $StagePath) {
   $StagePath = Join-Path $ProjectRoot 'dist-packaging'
+}
+if (-not $OutputPath) {
+  $OutputPath = Join-Path $ProjectRoot 'dist'
 }
 $BackendRequirements = Join-Path $ProjectRoot 'backend\requirements.txt'
 $PythonExe = Join-Path $VenvPath 'Scripts\python.exe'
@@ -56,21 +61,30 @@ function Write-PackagingLog {
 
 # START_CONTRACT: Invoke-Checked
 #   PURPOSE: Execute a native command and convert non-zero exit codes into contract error codes.
-#   INPUTS: { ErrorCode: string, Command: string, Arguments: string[] }
+#   INPUTS: { ErrorCode: string, CommandLine: string[] }
 #   OUTPUTS: none; throws on failure
 #   SIDE_EFFECTS: starts child processes and writes command output to the console
 #   LINKS: M-PACKAGING, V-M-PACKAGING
 # END_CONTRACT: Invoke-Checked
 function Invoke-Checked {
   param(
-    [Parameter(Mandatory = $true)][string]$ErrorCode,
-    [Parameter(Mandatory = $true)][string]$Command,
-    [Parameter(Mandatory = $true)][string[]]$Arguments
+    [string]$ErrorCode,
+    [string[]]$CommandLine
   )
 
-  & $Command @Arguments
+  if (-not $CommandLine -or $CommandLine.Count -eq 0) {
+    throw "${ErrorCode}: command line is empty"
+  }
+
+  $Executable = $CommandLine[0]
+  $CommandArgs = @()
+  if ($CommandLine.Count -gt 1) {
+    $CommandArgs = $CommandLine[1..($CommandLine.Count - 1)]
+  }
+
+  & $Executable @CommandArgs
   if ($LASTEXITCODE -ne 0) {
-    throw "${ErrorCode}: command failed: $Command $($Arguments -join ' ')"
+    throw "${ErrorCode}: command failed: $($CommandLine -join ' ')"
   }
 }
 
@@ -97,13 +111,13 @@ function build_venv {
 
   # START_BLOCK_CREATE_VENV
   Write-PackagingLog 'build_venv' 'BLOCK_CREATE_VENV' "creating venv at $VenvPath with Python $PythonVersion"
-  Invoke-Checked 'VENV_BUILD_FAILED' 'uv' @('venv', $VenvPath, '--python', $PythonVersion)
+  Invoke-Checked 'VENV_BUILD_FAILED' @('uv', 'venv', $VenvPath, '--python', $PythonVersion)
   # END_BLOCK_CREATE_VENV
 
   # START_BLOCK_INSTALL_WHEELS
   Write-PackagingLog 'build_venv' 'BLOCK_INSTALL_WHEELS' "installing torch $TorchVersion cu124 before pyannote"
-  Invoke-Checked 'CUDA_WHEEL_RESOLUTION_FAILED' 'uv' @(
-    'pip', 'install', '--python', $PythonExe,
+  Invoke-Checked 'CUDA_WHEEL_RESOLUTION_FAILED' @(
+    'uv', 'pip', 'install', '--python', $PythonExe,
     "torch==$TorchVersion", "torchaudio==$TorchaudioVersion",
     '--index-url', $TorchIndex
   )
@@ -117,8 +131,8 @@ function build_venv {
   ) | Set-Content -LiteralPath $constraintFile -Encoding UTF8
 
   Write-PackagingLog 'build_venv' 'BLOCK_INSTALL_WHEELS' 'installing backend requirements with torch pinned to cu124 wheels'
-  Invoke-Checked 'CUDA_WHEEL_RESOLUTION_FAILED' 'uv' @(
-    'pip', 'install', '--python', $PythonExe,
+  Invoke-Checked 'CUDA_WHEEL_RESOLUTION_FAILED' @(
+    'uv', 'pip', 'install', '--python', $PythonExe,
     '--constraint', $constraintFile,
     '-r', $BackendRequirements
   )
@@ -137,13 +151,13 @@ for module in ('ctranslate2', 'faster_whisper', 'pyannote.audio'):
 print('PACKAGING_VENV_OK', torch.__version__, torch.version.cuda)
 "@
   Write-PackagingLog 'build_venv' 'BLOCK_VALIDATE_IMPORTS' 'validating CUDA torch and ML imports'
-  Invoke-Checked 'CUDA_WHEEL_RESOLUTION_FAILED' $PythonExe @('-c', $validation)
+  Invoke-Checked 'CUDA_WHEEL_RESOLUTION_FAILED' @($PythonExe, '-c', $validation)
   # END_BLOCK_VALIDATE_IMPORTS
 }
 
 # START_CONTRACT: package
 #   PURPOSE: Build Electron artifacts after the Python sidecar has been created.
-#   INPUTS: { VenvPath, StagePath }
+#   INPUTS: { VenvPath, StagePath, OutputPath, DirOnly }
 #   OUTPUTS: electron-builder installer artifacts under dist
 #   SIDE_EFFECTS: copies Python/backend resources and runs npm package tooling
 #   LINKS: M-PACKAGING, V-M-PACKAGING
@@ -161,11 +175,32 @@ function package {
     Remove-Item -LiteralPath $pythonStage -Recurse -Force
   }
   Copy-Item -LiteralPath $VenvPath -Destination $pythonStage -Recurse
+  $projectStage = Join-Path $ProjectRoot 'dist-packaging'
+  $projectPythonStage = Join-Path $projectStage 'python'
+  New-Item -ItemType Directory -Path $projectStage -Force | Out-Null
+  if ((Resolve-Path -LiteralPath $StagePath).Path -ne (Resolve-Path -LiteralPath $projectStage).Path) {
+    if (Test-Path -LiteralPath $projectPythonStage) {
+      Remove-Item -LiteralPath $projectPythonStage -Recurse -Force
+    }
+    New-Item -ItemType Junction -Path $projectPythonStage -Target $pythonStage | Out-Null
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $pythonStage 'Scripts\python.exe'))) {
+    throw 'VENV_BUILD_FAILED: staged Python sidecar is missing Scripts\python.exe'
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $ProjectRoot 'backend\server.py'))) {
+    throw 'VENV_BUILD_FAILED: backend resources are missing server.py'
+  }
   # END_BLOCK_STAGE_SIDECAR
 
   # START_BLOCK_ELECTRON_BUILDER
-  Write-PackagingLog 'package' 'BLOCK_ELECTRON_BUILDER' 'running npm package flow'
-  Invoke-Checked 'VENV_BUILD_FAILED' 'npm' @('run', 'package:win')
+  $env:WA_PACKAGING_OUTPUT_PATH = $OutputPath
+  Write-PackagingLog 'package' 'BLOCK_ELECTRON_BUILDER' "running electron-builder with output $OutputPath"
+  Invoke-Checked 'VENV_BUILD_FAILED' @('npm.cmd', 'run', 'build')
+  $builderArgs = @('npx.cmd', 'electron-builder', '--win')
+  if ($DirOnly) {
+    $builderArgs += '--dir'
+  }
+  Invoke-Checked 'VENV_BUILD_FAILED' $builderArgs
   # END_BLOCK_ELECTRON_BUILDER
 }
 

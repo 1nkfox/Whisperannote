@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "lint": "eslint . --ext .ts,.tsx",
-    "package": "npm run build && electron-builder"
+    "package:venv": "powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Step build_venv",
+    "package:win": "powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Step package",
+    "package": "powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -Step all"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.80.0",

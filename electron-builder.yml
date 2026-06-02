@@ -1,0 +1,54 @@
+# FILE: electron-builder.yml
+# VERSION: 1.0.0
+# START_MODULE_CONTRACT
+#   PURPOSE: Configure Windows installer packaging for Electron assets plus Python/backend sidecar resources.
+#   SCOPE: electron-builder app metadata, NSIS target, app files, extraResources, model/cache exclusions.
+#   DEPENDS: M-PACKAGING, M-MAIN, M-SERVER, package.json, scripts/build.ps1
+#   LINKS: M-PACKAGING, V-M-PACKAGING
+#   ROLE: CONFIG
+#   MAP_MODE: NONE
+# END_MODULE_CONTRACT
+#
+# START_CHANGE_SUMMARY
+#   LAST_CHANGE: v1.0.0 - Added Phase 8 Windows installer config with resources/python and resources/backend sidecars.
+# END_CHANGE_SUMMARY
+
+appId: com.whisperannote.app
+productName: WhisperAnnote
+directories:
+  output: ${env.WA_PACKAGING_OUTPUT_PATH}
+  buildResources: build
+files:
+  - out/**
+  - package.json
+asar: true
+extraResources:
+  - from: dist-packaging/python
+    to: python
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
+      - "!**/pip-cache/**"
+  - from: backend
+    to: backend
+    filter:
+      - "**/*"
+      - "!tests/**"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
+      - "!models/**"
+      - "!model_cache/**"
+      - "!*.log"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "WhisperAnnote-Setup-${version}.${ext}"
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
