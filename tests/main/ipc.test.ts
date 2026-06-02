@@ -27,6 +27,8 @@ const {
   mockStartWatcher,
   mockStopWatcher,
   mockGetWatcherStatus,
+  mockScheduleScan,
+  mockStopSchedule,
   mockGetInfo,
   mockGetStatus,
   mockRestart
@@ -42,6 +44,8 @@ const {
   mockStartWatcher: vi.fn(),
   mockStopWatcher: vi.fn(),
   mockGetWatcherStatus: vi.fn(),
+  mockScheduleScan: vi.fn(),
+  mockStopSchedule: vi.fn(),
   mockGetInfo: vi.fn(),
   mockGetStatus: vi.fn(),
   mockRestart: vi.fn()
@@ -74,6 +78,11 @@ vi.mock('../../electron/file-watcher', () => ({
   startWatcher: mockStartWatcher,
   stopWatcher: mockStopWatcher,
   getWatcherStatus: mockGetWatcherStatus
+}))
+
+vi.mock('../../electron/scheduler', () => ({
+  scheduleScan: mockScheduleScan,
+  stopSchedule: mockStopSchedule
 }))
 
 import { registerIpc } from '../../electron/ipc-handlers'
@@ -158,16 +167,21 @@ describe('M-IPC', () => {
     expect(result).toEqual({ ok: true })
   })
 
-  it('watcher:start starts watcher and forwards new-file events to renderer', async () => {
+  it('watcher:start starts watcher, schedules cron, and forwards new-file events to renderer', async () => {
     const send = vi.fn()
     registerIpc()
     mockStartWatcher.mockResolvedValue(undefined)
 
     const handler = getHandler('watcher:start')
-    const result = await handler({ sender: { send } }, { folder: 'H:/audio' })
+    const result = await handler({ sender: { send } }, { folder: 'H:/audio', cron: '*/5 * * * *' })
 
     expect(result).toEqual({ ok: true })
     expect(mockStartWatcher).toHaveBeenCalledWith({ folder: 'H:/audio', onFile: expect.any(Function) })
+    expect(mockScheduleScan).toHaveBeenCalledWith({
+      cronExpression: '*/5 * * * *',
+      folder: 'H:/audio',
+      onFile: expect.any(Function)
+    })
 
     const onFile = mockStartWatcher.mock.calls[0][0].onFile as (payload: unknown) => void
     onFile({ filePath: 'H:/audio/a.wav', fileName: 'a.wav' })
@@ -182,6 +196,18 @@ describe('M-IPC', () => {
     const result = await handler({ sender: { send: vi.fn() } }, undefined)
 
     expect(result).toEqual({ watching: true, folder: 'H:/audio' })
+  })
+
+  it('watcher:stop stops scheduler and watcher', async () => {
+    registerIpc()
+    mockStopWatcher.mockResolvedValue(undefined)
+
+    const handler = getHandler('watcher:stop')
+    const result = await handler({ sender: { send: vi.fn() } }, undefined)
+
+    expect(result).toEqual({ ok: true })
+    expect(mockStopSchedule).toHaveBeenCalled()
+    expect(mockStopWatcher).toHaveBeenCalled()
   })
 })
 

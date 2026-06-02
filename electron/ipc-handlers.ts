@@ -3,7 +3,7 @@
 // START_MODULE_CONTRACT
 //   PURPOSE: Register whitelisted IPC handlers for config, dialog, backend, and watcher channels.
 //   SCOPE: ipcMain.handle for each IPC_CHANNELS entry; watcher lifecycle bridges new-file events to renderer.
-//   DEPENDS: M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SHARED, electron (dialog, ipcMain, shell)
+//   DEPENDS: M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SCHEDULER, M-SHARED, electron (dialog, ipcMain, shell)
 //   LINKS: M-IPC, V-M-IPC
 //   ROLE: INTEGRATION
 //   MAP_MODE: EXPORTS
@@ -24,8 +24,9 @@ import {
   setConfig,
   setSecretHfToken
 } from './config-store'
-import { getWatcherStatus, startWatcher, stopWatcher } from './file-watcher'
+import { getWatcherStatus, startWatcher, stopWatcher, type NewFileEvent } from './file-watcher'
 import { getInfo, getStatus, restart, start, stop } from './python-manager'
+import { scheduleScan, stopSchedule } from './scheduler'
 
 // START_CONTRACT: registerIpc
 //   PURPOSE: Wire ipcMain.handle for every channel in the IPC_CHANNELS whitelist.
@@ -102,15 +103,20 @@ async function handleIpc(
 
     // ---------- Watcher ----------
     case 'watcher:start': {
-      const { folder } = request as IpcRequestMap['watcher:start']
+      const { folder, cron } = request as IpcRequestMap['watcher:start']
+      const onFile = (payload: NewFileEvent) => event.sender.send('watcher:new-file', payload)
       await startWatcher({
         folder,
-        onFile: (payload) => event.sender.send('watcher:new-file', payload)
+        onFile
       })
+      if (cron) {
+        scheduleScan({ cronExpression: cron, folder, onFile })
+      }
       return { ok: true as const }
     }
 
     case 'watcher:stop':
+      stopSchedule()
       await stopWatcher()
       return { ok: true as const }
 
