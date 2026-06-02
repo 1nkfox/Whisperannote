@@ -240,7 +240,7 @@
 
     <!-- ===================== SHARED (TypeScript, общий для main и renderer) ===================== -->
 
-    <M-SHARED NAME="SharedContracts" TYPE="UTILITY" LAYER="0" ORDER="0" STATUS="planned">
+    <M-SHARED NAME="SharedContracts" TYPE="UTILITY" LAYER="0" ORDER="0" STATUS="implemented">
       <contract>
         <purpose>Единый TS-контракт, общий для electron/ и src/: имена IPC-каналов и их типы, AppConfig, BackendInfo, события, зеркало backend-DTO (TranscriptSegment, TaskInfo, WSMessage, ...).</purpose>
         <inputs><param name="none" type="—" /></inputs>
@@ -365,7 +365,7 @@
 
     <!-- ===================== RENDERER (React) ===================== -->
 
-    <M-UI NAME="UiPrimitives" TYPE="UI_COMPONENT" LAYER="0" ORDER="4" STATUS="planned">
+    <M-UI NAME="UiPrimitives" TYPE="UI_COMPONENT" LAYER="0" ORDER="4" STATUS="implemented">
       <contract>
         <purpose>Набор shadcn/ui компонентов (~15): button, card, select, switch, tabs, dialog, progress, table, toast и т.д.</purpose>
         <inputs><param name="props" type="ComponentProps" /></inputs>
@@ -378,7 +378,7 @@
       <notes><note-1>15 из 48 врапперов Whisperer_v1; select берём (один раз).</note-1></notes>
     </M-UI>
 
-    <M-I18N NAME="I18n" TYPE="UTILITY" LAYER="0" ORDER="5" STATUS="planned">
+    <M-I18N NAME="I18n" TYPE="UTILITY" LAYER="0" ORDER="5" STATUS="implemented">
       <contract>
         <purpose>react-i18next: ru (основной) + en (fallback), переключение языка.</purpose>
         <inputs><param name="key" type="string" /></inputs>
@@ -569,12 +569,12 @@
       <goal>Структура проекта и GRACE-артефакты, контракты модулей</goal>
       <step-1 module="—" status="pending">grace-init, grace-plan, grace-verification</step-1>
     </Phase-0>
-    <Phase-1 name="Каркас Electron+React" status="pending">
+    <Phase-1 name="Каркас Electron+React" status="done">
       <goal>Сборка electron-vite, Tailwind, shadcn/ui, общий контракт, типы</goal>
-      <step-1 module="—" status="pending">Скаффолд: electron-vite + package.json + tsconfig + vitest + tailwind (PKG-SCAFFOLD)</step-1>
-      <step-2 module="M-SHARED" status="pending" verification="V-M-SHARED">Общий контракт (IPC/AppConfig/DTO)</step-2>
-      <step-3 module="M-UI" status="pending" verification="V-M-UI">UI-примитивы</step-3>
-      <step-4 module="M-I18N" status="pending" verification="V-M-I18N">i18n ru/en</step-4>
+      <step-1 module="—" status="done">Скаффолд: electron-vite + package.json + tsconfig + vitest + tailwind (PKG-SCAFFOLD)</step-1>
+      <step-2 module="M-SHARED" status="done" verification="V-M-SHARED">Общий контракт (IPC/AppConfig/DTO)</step-2>
+      <step-3 module="M-UI" status="done" verification="V-M-UI">UI-примитивы</step-3>
+      <step-4 module="M-I18N" status="done" verification="V-M-I18N">i18n ru/en</step-4>
     </Phase-1>
     <Phase-2 name="Backend Core" status="done">
       <goal>FastAPI, auth, pipeline без чанкинга, очередь, WS — реализовано, 45 тестов зелёные (1 skip: ffmpeg-бинаря нет в CI)</goal>

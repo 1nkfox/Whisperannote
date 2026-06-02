@@ -131,7 +131,7 @@
 
     <!-- ===================== SHARED (TypeScript) ===================== -->
 
-    <M-SHARED NAME="SharedContracts" TYPE="UTILITY" STATUS="planned">
+    <M-SHARED NAME="SharedContracts" TYPE="UTILITY" STATUS="implemented">
       <purpose>Общий TS-контракт electron+renderer: IPC-каналы+типы, AppConfig, BackendInfo, события, зеркало backend-DTO</purpose>
       <path>src/shared/</path>
       <depends>none</depends>
@@ -199,7 +199,7 @@
 
     <!-- ===================== RENDERER (React) ===================== -->
 
-    <M-UI NAME="UiPrimitives" TYPE="UI_COMPONENT" STATUS="planned">
+    <M-UI NAME="UiPrimitives" TYPE="UI_COMPONENT" STATUS="implemented">
       <purpose>shadcn/ui примитивы (~15)</purpose>
       <path>src/components/ui/</path>
       <depends>none</depends>
@@ -207,7 +207,7 @@
       <annotations><export-components PURPOSE="button, card, select, dialog, progress, table, toast..." /></annotations>
     </M-UI>
 
-    <M-I18N NAME="I18n" TYPE="UTILITY" STATUS="planned">
+    <M-I18N NAME="I18n" TYPE="UTILITY" STATUS="implemented">
       <purpose>react-i18next ru/en</purpose>
       <path>src/i18n/</path>
       <depends>none</depends>
