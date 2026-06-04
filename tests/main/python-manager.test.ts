@@ -124,6 +124,41 @@ describe('M-PY-MANAGER', () => {
     // Tokens should NOT appear in argv
     expect(callArgs[1]).not.toContain('mock-token-hex-value')
     expect(callArgs[1]).not.toContain(hfToken)
+    expect(callArgs[1]).toContain('backend.server:create_app')
+    expect(callArgs[1]).toContain('--factory')
+  })
+
+  it('sets a writable model cache dir for backend downloads', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true })
+    mockAccess.mockResolvedValueOnce(undefined)
+
+    await start()
+
+    const spawnCall = mockSpawn.mock.calls[0]
+    const callArgs = spawnCall as unknown as [string, string[], { env: Record<string, string> }]
+    expect(callArgs[2].env.MODEL_CACHE_DIR).toContain('WhisperAnnote')
+    expect(callArgs[2].env.MODEL_CACHE_DIR).toContain('models')
+  })
+
+  it('uses project cwd for dev backend imports', async () => {
+    const previousRendererUrl = process.env.ELECTRON_RENDERER_URL
+    process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
+    mockFetch.mockResolvedValueOnce({ ok: true })
+    mockAccess.mockResolvedValueOnce(undefined)
+
+    try {
+      await start()
+
+      const spawnCall = mockSpawn.mock.calls[0]
+      const callArgs = spawnCall as unknown as [string, string[], { cwd: string }]
+      expect(callArgs[2].cwd).toBe(process.cwd())
+    } finally {
+      if (previousRendererUrl === undefined) {
+        delete process.env.ELECTRON_RENDERER_URL
+      } else {
+        process.env.ELECTRON_RENDERER_URL = previousRendererUrl
+      }
+    }
   })
 
   it('polls health endpoint until ready', { timeout: 8000 }, async () => {
@@ -184,3 +219,9 @@ describe('M-PY-MANAGER', () => {
   })
 
 })
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.3.0 - Asserted uvicorn factory entrypoint matches backend.server:create_app.
+//   LAST_CHANGE: v1.2.0 - Added dev backend cwd coverage for uvicorn backend.server imports.
+//   LAST_CHANGE: v1.1.0 - Added model cache env coverage for first-run model download readiness.
+// END_CHANGE_SUMMARY

@@ -43,10 +43,29 @@ describe('M-APP-SHELL contracts', () => {
     )
 
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeTruthy()
-    expect(screen.getByTestId('title-bar').textContent).toContain('GPU-only CUDA pipeline')
+    expect(screen.getByTestId('window-controls').closest('header')?.className).toContain('wa-app-drag')
+    expect(screen.getByRole('navigation', { name: 'Main navigation' }).className).toContain('wa-app-no-drag')
+    expect(screen.queryByText('WhisperAnnote')).toBeNull()
+    expect(screen.queryByText('Current section')).toBeNull()
     expect(screen.getByText('Manual upload view')).toBeTruthy()
     expect(screen.getByText('Backend: online')).toBeTruthy()
     expect(screen.getByText('GPU: 1 CUDA')).toBeTruthy()
+  })
+
+  it('invokes frameless window controls through the preload bridge', () => {
+    const invoke = vi.fn(async () => ({ ok: true }))
+    Object.assign(window, { electron: { invoke } })
+
+    render(
+      <AppShell activeTab="transcribe">
+        <p>Manual upload view</p>
+      </AppShell>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize window' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close window' }))
+    expect(invoke).toHaveBeenCalledWith('window:minimize', undefined)
+    expect(invoke).toHaveBeenCalledWith('window:close', undefined)
   })
 
   it('switches dark and light theme without reload', () => {
@@ -69,5 +88,8 @@ describe('M-APP-SHELL contracts', () => {
 })
 
 // START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.3.0 - Updated shell assertions for compact top bar without masthead/current-section bands.
+//   LAST_CHANGE: v1.2.0 - Added draggable/no-drag shell chrome assertions.
+//   LAST_CHANGE: v1.1.0 - Added frameless window control bridge coverage.
 //   LAST_CHANGE: v1.0.0 - Added module-local shell tests for layout and theme switching.
 // END_CHANGE_SUMMARY

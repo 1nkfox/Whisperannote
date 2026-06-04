@@ -10,7 +10,7 @@
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   IPC_CHANNELS - as const whitelist of invoke channels.
+//   IPC_CHANNELS - as const whitelist of invoke channels including safe window controls.
 //   IPC_EVENTS - as const whitelist of main-to-renderer events.
 //   AppConfig - persisted app settings without raw HF token.
 //   BackendInfo / BackendStatus - local backend connection metadata.
@@ -82,7 +82,9 @@ export const IPC_CHANNELS = [
   'watcher:start',
   'watcher:stop',
   'watcher:get-status',
-  'shell:open-path'
+  'shell:open-path',
+  'window:minimize',
+  'window:close'
 ] as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[number]
@@ -106,6 +108,8 @@ export type IpcRequestMap = {
   'watcher:stop': undefined
   'watcher:get-status': undefined
   'shell:open-path': { path: string }
+  'window:minimize': undefined
+  'window:close': undefined
 }
 
 export type IpcResponseMap = {
@@ -123,7 +127,13 @@ export type IpcResponseMap = {
   'watcher:stop': OkResponse
   'watcher:get-status': WatcherStatus
   'shell:open-path': OkResponse
+  'window:minimize': OkResponse
+  'window:close': OkResponse
 }
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.1.0 - Added safe frameless-window controls for renderer minimize/close buttons.
+// END_CHANGE_SUMMARY
 
 export type MainToRendererEventMap = {
   'watcher:new-file': { filePath: string; fileName: string }

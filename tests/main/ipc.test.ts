@@ -24,6 +24,7 @@ const {
   mockHasHfToken,
   mockSetSecretHfToken,
   mockClearHfToken,
+  mockGetSecretHfToken,
   mockStartWatcher,
   mockStopWatcher,
   mockGetWatcherStatus,
@@ -31,7 +32,10 @@ const {
   mockStopSchedule,
   mockGetInfo,
   mockGetStatus,
-  mockRestart
+  mockRestart,
+  mockMinimizeWindow,
+  mockCloseWindow,
+  mockFromWebContents
 } = vi.hoisted(() => ({
   mockHandle: vi.fn(),
   mockShowOpenDialog: vi.fn(),
@@ -41,6 +45,7 @@ const {
   mockHasHfToken: vi.fn(),
   mockSetSecretHfToken: vi.fn(),
   mockClearHfToken: vi.fn(),
+  mockGetSecretHfToken: vi.fn(() => 'hf_current_token'),
   mockStartWatcher: vi.fn(),
   mockStopWatcher: vi.fn(),
   mockGetWatcherStatus: vi.fn(),
@@ -48,10 +53,14 @@ const {
   mockStopSchedule: vi.fn(),
   mockGetInfo: vi.fn(),
   mockGetStatus: vi.fn(),
-  mockRestart: vi.fn()
+  mockRestart: vi.fn(),
+  mockMinimizeWindow: vi.fn(),
+  mockCloseWindow: vi.fn(),
+  mockFromWebContents: vi.fn(() => ({ minimize: mockMinimizeWindow, close: mockCloseWindow }))
 }))
 
 vi.mock('electron', () => ({
+  BrowserWindow: { fromWebContents: mockFromWebContents },
   ipcMain: { handle: mockHandle },
   dialog: { showOpenDialog: mockShowOpenDialog },
   shell: { openPath: mockOpenPath }
@@ -63,7 +72,7 @@ vi.mock('../../electron/config-store', () => ({
   hasHfToken: mockHasHfToken,
   setSecretHfToken: mockSetSecretHfToken,
   clearHfToken: mockClearHfToken,
-  getSecretHfToken: vi.fn()
+  getSecretHfToken: mockGetSecretHfToken
 }))
 
 vi.mock('../../electron/python-manager', () => ({
@@ -124,7 +133,7 @@ describe('M-IPC', () => {
   })
 
   it('config:set-hf-token stores token and restarts backend', async () => {
-    registerIpc('existing-token')
+    registerIpc()
     mockRestart.mockResolvedValue(undefined)
 
     const handler = getHandler('config:set-hf-token')
@@ -132,6 +141,19 @@ describe('M-IPC', () => {
 
     expect(mockSetSecretHfToken).toHaveBeenCalledWith('new-hf-token')
     expect(mockRestart).toHaveBeenCalledWith('new-hf-token')
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('backend:restart uses the current secure HF token', async () => {
+    registerIpc()
+    mockGetSecretHfToken.mockReturnValue('hf_current_token')
+    mockRestart.mockResolvedValue(undefined)
+
+    const handler = getHandler('backend:restart')
+    const result = await handler({}, undefined)
+
+    expect(mockGetSecretHfToken).toHaveBeenCalled()
+    expect(mockRestart).toHaveBeenCalledWith('hf_current_token')
     expect(result).toEqual({ ok: true })
   })
 
@@ -165,6 +187,20 @@ describe('M-IPC', () => {
 
     expect(mockOpenPath).toHaveBeenCalledWith('/output')
     expect(result).toEqual({ ok: true })
+  })
+
+  it('window control handlers operate on sender window only', async () => {
+    const sender = { id: 1 }
+    registerIpc()
+
+    const minimize = getHandler('window:minimize')
+    const close = getHandler('window:close')
+
+    await expect(minimize({ sender }, undefined)).resolves.toEqual({ ok: true })
+    await expect(close({ sender }, undefined)).resolves.toEqual({ ok: true })
+    expect(mockFromWebContents).toHaveBeenCalledWith(sender)
+    expect(mockMinimizeWindow).toHaveBeenCalled()
+    expect(mockCloseWindow).toHaveBeenCalled()
   })
 
   it('watcher:start starts watcher, schedules cron, and forwards new-file events to renderer', async () => {
@@ -214,3 +250,8 @@ describe('M-IPC', () => {
 function getHandler(channel: string): (...args: unknown[]) => Promise<unknown> {
   return mockHandle.mock.calls.find(([ch]) => ch === channel)?.[1] as (...args: unknown[]) => Promise<unknown>
 }
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.2.0 - Added window minimize/close IPC handler coverage.
+//   LAST_CHANGE: v1.1.0 - Updated restart coverage for secure HF-token reloading in M-IPC.
+// END_CHANGE_SUMMARY

@@ -2,8 +2,8 @@
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Wrap electron-store with safeStorage for HF token management and app config persistence.
-//   SCOPE: Read/write AppConfig, encrypted HF-token put/get/clear via safeStorage.
-//   DEPENDS: M-SHARED, electron-store, electron (safeStorage)
+//   SCOPE: Read/write AppConfig JSON under Electron userData, encrypted HF-token put/get/clear via safeStorage.
+//   DEPENDS: M-SHARED, electron (app, safeStorage), node:fs, node:path
 //   LINKS: M-CONFIG-STORE, V-M-CONFIG-STORE
 //   ROLE: DATA_LAYER
 //   MAP_MODE: EXPORTS
@@ -16,9 +16,11 @@
 //   getSecretHfToken - decrypts and returns the HF token or null.
 //   setSecretHfToken - encrypts and persists the HF token.
 //   clearHfToken - removes the encrypted HF token from the store.
+//   readStore/writeStore - local JSON persistence helpers.
 // END_MODULE_MAP
-import { safeStorage } from 'electron'
-import ElectronStore from 'electron-store'
+import { app, safeStorage } from 'electron'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 import type { AppConfig } from '../src/shared'
 
@@ -39,11 +41,48 @@ const defaults: AppConfig = {
   hasHfToken: false
 }
 
-let store: ElectronStore<AppConfig> | null = null
+type StoreData = AppConfig & {
+  [HF_TOKEN_KEY]?: string
+}
 
-function getStore(): ElectronStore<AppConfig> {
+let store: StoreData | null = null
+
+function configPath(): string {
+  return join(app.getPath('userData'), 'config.json')
+}
+
+function sanitizeStoreData(value: Partial<StoreData> = {}): StoreData {
+  return {
+    ...defaults,
+    ...value,
+    hasHfToken: Boolean(value.hasHfToken),
+    [HF_TOKEN_KEY]: value[HF_TOKEN_KEY]
+  }
+}
+
+function readStore(): StoreData {
+  const path = configPath()
+
+  if (!existsSync(path)) {
+    return sanitizeStoreData()
+  }
+
+  try {
+    return sanitizeStoreData(JSON.parse(readFileSync(path, 'utf8')) as Partial<StoreData>)
+  } catch {
+    return sanitizeStoreData()
+  }
+}
+
+function writeStore(nextStore: StoreData): void {
+  const path = configPath()
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, JSON.stringify(nextStore, null, 2), 'utf8')
+}
+
+function getStore(): StoreData {
   if (!store) {
-    store = new ElectronStore<AppConfig>({ defaults })
+    store = readStore()
   }
   return store
 }
@@ -56,7 +95,8 @@ function getStore(): ElectronStore<AppConfig> {
 //   LINKS: M-CONFIG-STORE, V-M-CONFIG-STORE
 // END_CONTRACT: getConfig
 export function getConfig(): AppConfig {
-  return getStore().store
+  const { [HF_TOKEN_KEY]: _encrypted, ...config } = getStore()
+  return config
 }
 
 // START_CONTRACT: setConfig
@@ -67,10 +107,11 @@ export function getConfig(): AppConfig {
 //   LINKS: M-CONFIG-STORE, V-M-CONFIG-STORE
 // END_CONTRACT: setConfig
 export function setConfig(patch: Partial<AppConfig>): AppConfig {
-  const current = { ...getStore().store }
+  const current = { ...getStore() }
   const updated = { ...current, ...patch }
-  getStore().store = updated
-  return updated
+  store = sanitizeStoreData(updated)
+  writeStore(store)
+  return getConfig()
 }
 
 // START_CONTRACT: hasHfToken
@@ -85,7 +126,7 @@ export function hasHfToken(): boolean {
     return false
   }
   try {
-    const encrypted = getStore().get(HF_TOKEN_KEY) as string | undefined
+    const encrypted = getStore()[HF_TOKEN_KEY]
     return !!encrypted
   } catch {
     return false
@@ -105,7 +146,7 @@ export function getSecretHfToken(): string | null {
     return null
   }
   try {
-    const encrypted = getStore().get(HF_TOKEN_KEY) as string | undefined
+    const encrypted = getStore()[HF_TOKEN_KEY]
     if (!encrypted) return null
     return safeStorage.decryptString(Buffer.from(encrypted, 'hex'))
   } catch {
@@ -126,8 +167,8 @@ export function setSecretHfToken(token: string): void {
     throw new Error('ENCRYPTION_UNAVAILABLE')
   }
   const encrypted = safeStorage.encryptString(token)
-  getStore().set(HF_TOKEN_KEY, encrypted.toString('hex'))
-  setConfig({ hasHfToken: true })
+  store = sanitizeStoreData({ ...getStore(), [HF_TOKEN_KEY]: encrypted.toString('hex'), hasHfToken: true })
+  writeStore(store)
 }
 
 // START_CONTRACT: clearHfToken
@@ -138,6 +179,12 @@ export function setSecretHfToken(token: string): void {
 //   LINKS: M-CONFIG-STORE, V-M-CONFIG-STORE
 // END_CONTRACT: clearHfToken
 export function clearHfToken(): void {
-  getStore().delete(HF_TOKEN_KEY)
-  setConfig({ hasHfToken: false })
+  const nextStore = { ...getStore(), hasHfToken: false }
+  delete nextStore[HF_TOKEN_KEY]
+  store = sanitizeStoreData(nextStore)
+  writeStore(store)
 }
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.1.0 - Replaced electron-store with local JSON persistence to avoid Electron Node 20 ESM import crash.
+// END_CHANGE_SUMMARY

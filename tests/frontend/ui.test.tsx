@@ -62,6 +62,7 @@ describe('M-UI primitives', () => {
 
     expect(screen.getByLabelText('Model')).toHaveProperty('value', 'large-v3')
     expect(screen.getByRole('combobox', { name: 'Language' })).toHaveProperty('value', 'ru')
+    expect(screen.getByRole('combobox', { name: 'Language' }).className).toContain('h-8')
     expect(screen.getByRole('switch', { name: 'Watch folder' }).getAttribute('aria-checked')).toBe('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Run' }))
@@ -133,3 +134,7 @@ describe('M-UI primitives', () => {
     expect(cn('base', false, undefined, null, 'active')).toBe('base active')
   })
 })
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.1.0 - Added compact Select regression assertion for Heritage controls.
+// END_CHANGE_SUMMARY

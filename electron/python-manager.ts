@@ -2,8 +2,8 @@
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Manage the Python FastAPI backend lifecycle: free-port selection, token generation,
-//            spawn uvicorn via child_process, health polling, graceful shutdown, restart.
-//   SCOPE: Backend process orchestration for the Electron main process.
+//            model cache env, spawn uvicorn via child_process, health polling, graceful shutdown, restart.
+//   SCOPE: Backend process orchestration and writable backend environment setup for the Electron main process.
 //   DEPENDS: M-CONFIG-STORE, M-SHARED, node:child_process, node:crypto, node:net
 //   LINKS: M-PY-MANAGER, V-M-PY-MANAGER
 //   ROLE: INTEGRATION
@@ -16,6 +16,8 @@
 //   restart - stop then start.
 //   getStatus - running/healthy/port.
 //   getInfo - return current BackendInfo.
+//   resolveModelCacheDir - choose a writable model cache outside bundled app resources.
+//   resolveBackendCwd - choose project root in dev and resources root in packaged app.
 // END_MODULE_MAP
 import { randomBytes } from 'node:crypto'
 import { createServer, type AddressInfo } from 'node:net'
@@ -89,6 +91,26 @@ async function findActualPort(configPort: number | null): Promise<number> {
   return findFreePort()
 }
 
+function resolveModelCacheDir(): string {
+  if (process.env.WA_MODEL_CACHE_DIR) {
+    return process.env.WA_MODEL_CACHE_DIR
+  }
+
+  return join(process.env.LOCALAPPDATA ?? process.cwd(), 'WhisperAnnote', 'models')
+}
+
+function resolveBackendCwd(): string {
+  if (process.env.WA_BACKEND_CWD) {
+    return process.env.WA_BACKEND_CWD
+  }
+
+  if (process.env.ELECTRON_RENDERER_URL) {
+    return process.cwd()
+  }
+
+  return process.resourcesPath ?? process.cwd()
+}
+
 // START_CONTRACT: start
 //   PURPOSE: Launch the Python backend and wait for a healthy health-check response.
 //   INPUTS: { preferredPort?: number, hfToken?: string }
@@ -110,7 +132,7 @@ export async function start(preferredPort?: number, hfToken?: string): Promise<B
     BACKEND_HOST: '127.0.0.1',
     BACKEND_PORT: String(port),
     BACKEND_TOKEN: token,
-    MODEL_CACHE_DIR: '',
+    MODEL_CACHE_DIR: resolveModelCacheDir(),
     ALLOWED_ROOTS: config.outputFolder,
     CORS_ORIGINS: process.env.ELECTRON_RENDERER_URL ?? 'app://.'
   }
@@ -123,9 +145,9 @@ export async function start(preferredPort?: number, hfToken?: string): Promise<B
     env.ALLOWED_ROOTS = [config.outputFolder, config.watchFolder].filter(Boolean).join(';')
   }
 
-  const cwd = join(process.resourcesPath ?? process.cwd())
+  const cwd = resolveBackendCwd()
 
-  processInstance = spawn(pythonPath, ['-m', 'uvicorn', 'backend.server:app', '--host', '127.0.0.1', '--port', String(port)], {
+  processInstance = spawn(pythonPath, ['-m', 'uvicorn', 'backend.server:create_app', '--factory', '--host', '127.0.0.1', '--port', String(port)], {
     env,
     cwd,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -158,8 +180,9 @@ export async function start(preferredPort?: number, hfToken?: string): Promise<B
 }
 
 function logBackendLine(line: string) {
-  // Placeholder for structured logging forwarding
-  // Will be connected to renderer event in M-IPC/M-MAIN
+  if (process.env.NODE_ENV !== 'production') {
+    console.info(`[PyManager][start][BLOCK_SPAWN_BACKEND] ${line}`)
+  }
 }
 
 async function pollHealth(baseUrl: string, token: string): Promise<void> {
@@ -279,3 +302,10 @@ export function getStatus(): BackendStatus {
 export function getInfo(): BackendInfo | null {
   return currentInfo
 }
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.4.0 - Spawn uvicorn with backend.server:create_app --factory to match the backend entry contract.
+//   LAST_CHANGE: v1.3.0 - Use project root as backend cwd in dev so uvicorn can import backend.server.
+//   LAST_CHANGE: v1.2.0 - Forward backend stdout/stderr to dev logs so startup health failures are diagnosable.
+//   LAST_CHANGE: v1.1.0 - Backend now receives a stable writable MODEL_CACHE_DIR instead of an empty cache path.
+// END_CHANGE_SUMMARY

@@ -1,7 +1,7 @@
 // FILE: src/components/settings/index.tsx
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
-//   PURPOSE: Render persisted GPU-only application settings, output options, HF-token controls, and general preferences.
+//   PURPOSE: Render Figma-styled persisted GPU-only application settings, output options, HF-token controls, and general preferences.
 //   SCOPE: Store-backed renderer settings form, safe Electron IPC config persistence, folder selection, and HF-token status actions.
 //   DEPENDS: M-STORES, M-UI, M-I18N, M-SHARED, React
 //   LINKS: M-SETTINGS, V-M-SETTINGS, M-CONFIG-STORE
@@ -10,7 +10,7 @@
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   SettingsView - settings tab for model, output, HF-token, language, theme, and preferred backend port.
+//   SettingsView - control-first settings tab for model, output, HF-token, language, theme, and preferred backend port.
 // END_MODULE_MAP
 import { useEffect, useState } from 'react'
 
@@ -178,21 +178,14 @@ export function SettingsView({ electronApi }: SettingsViewProps) {
   }
 
   return (
-    <section className="space-y-4" aria-label={t('settings.title', 'Настройки')}>
-      <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-zinc-500">M-SETTINGS</p>
-        <h1 className="text-2xl font-semibold">{t('settings.title', 'Настройки')}</h1>
-        <p className="max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
-          {t('settings.description', 'GPU закреплён за CUDA; CPU-режим недоступен в этом проекте.')}
-        </p>
-      </div>
+    <section className="space-y-6" aria-label={t('settings.title', 'Настройки')}>
+      {message ? <div role="status" className="rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200">{message}</div> : null}
+      {error ? <div role="alert" className="rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{error}</div> : null}
 
-      {message ? <div role="status" className="text-sm text-emerald-700 dark:text-emerald-300">{message}</div> : null}
-      {error ? <div role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</div> : null}
-
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6C7278]">Model</p>
             <CardTitle>{t('settings.modelTitle', 'Модель и устройство')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -209,7 +202,7 @@ export function SettingsView({ electronApi }: SettingsViewProps) {
               </Select>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="settings-speakers">{t('upload.numSpeakers', 'Количество спикеров')}</Label>
                 <Input
@@ -224,10 +217,15 @@ export function SettingsView({ electronApi }: SettingsViewProps) {
                   }}
                 />
               </div>
-              <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-                <div className="text-zinc-500">{t('settings.device', 'Устройство')}</div>
+              <div className="rounded-[4px] border border-[rgba(108,114,120,0.2)] bg-[#F7F5F2] p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6C7278]">{t('settings.device', 'Устройство')}</div>
                 <div className="mt-1 font-semibold">GPU CUDA</div>
-                <div className="mt-1 text-xs text-zinc-500">{t('settings.gpuFixed', 'Фиксировано контрактом проекта')}</div>
+                <div className="mt-1 text-xs text-[#6C7278]">{t('settings.gpuFixed', 'Фиксировано контрактом проекта')}</div>
+              </div>
+              <div className="rounded-[4px] border border-[rgba(108,114,120,0.2)] bg-[#F7F5F2] p-3 text-sm opacity-65 dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="text-xs font-semibold uppercase tracking-[0.08em] text-[#6C7278]">CPU</div>
+                <div className="mt-1 font-semibold">Недоступен</div>
+                <div className="mt-1 text-xs text-[#6C7278]">GPU-only invariant</div>
               </div>
             </div>
           </CardContent>
@@ -235,6 +233,7 @@ export function SettingsView({ electronApi }: SettingsViewProps) {
 
         <Card>
           <CardHeader>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6C7278]">Save path</p>
             <CardTitle>{t('settings.outputTitle', 'Результаты')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -255,8 +254,8 @@ export function SettingsView({ electronApi }: SettingsViewProps) {
               <legend className="text-sm font-medium">{t('settings.outputFormats', 'Форматы вывода')}</legend>
               <div className="grid grid-cols-2 gap-2">
                 {outputFormatOptions.map((format) => (
-                  <div key={format} className="flex items-center justify-between rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
-                    <span>{format.toUpperCase()}</span>
+                  <div key={format} className="flex items-center justify-between rounded-[4px] border border-[rgba(108,114,120,0.2)] bg-[#F7F5F2] p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950">
+                    <span className="font-medium">{format.toUpperCase()}</span>
                     <Switch
                       aria-label={`${format.toUpperCase()} format`}
                       checked={outputFormats.includes(format)}
@@ -271,6 +270,7 @@ export function SettingsView({ electronApi }: SettingsViewProps) {
 
         <Card>
           <CardHeader>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6C7278]">Application</p>
             <CardTitle>{t('settings.generalTitle', 'Общие')}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-3">
@@ -316,10 +316,11 @@ export function SettingsView({ electronApi }: SettingsViewProps) {
 
         <Card>
           <CardHeader>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#6C7278]">Secure storage</p>
             <CardTitle>{t('settings.hfToken', 'HuggingFace токен')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+            <div className="rounded-[4px] border border-[rgba(108,114,120,0.2)] bg-[#F7F5F2] p-3 text-sm dark:border-zinc-800 dark:bg-zinc-950">
               {hasHfToken ? t('settings.tokenPresent', 'Токен сохранён в защищённом хранилище') : t('settings.tokenMissing', 'Токен ещё не сохранён')}
             </div>
             <div className="space-y-2">
@@ -344,5 +345,8 @@ export function SettingsView({ electronApi }: SettingsViewProps) {
 }
 
 // START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.3.0 - Removed the Advanced settings header card so settings open directly on controls.
+//   LAST_CHANGE: v1.2.0 - Flattened settings surfaces and reduced tertiary accent use to align with Heritage single-accent guidance.
+//   LAST_CHANGE: v1.1.0 - Ported the Figma advanced-settings card language, GPU/CPU device presentation, output chips, and status surfaces.
 //   LAST_CHANGE: v1.0.0 - Implemented Phase-6 settings view with GPU-only settings persistence and secure HF-token IPC.
 // END_CHANGE_SUMMARY

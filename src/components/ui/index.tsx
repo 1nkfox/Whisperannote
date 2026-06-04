@@ -1,7 +1,7 @@
 // FILE: src/components/ui/index.tsx
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
-//   PURPOSE: Provide reusable React UI primitives for the renderer using shadcn-style Tailwind classes.
+//   PURPOSE: Provide reusable React UI primitives for the renderer using the Figma-derived heritage palette.
 //   SCOPE: Button, Card, Input, Select, Switch, Tabs, Dialog, Progress, Table, Toast, Tooltip, Badge,
 //          ScrollArea, Separator, Label, and the cn class helper.
 //   DEPENDS: React
@@ -12,7 +12,7 @@
 //
 // START_MODULE_MAP
 //   cn - className join helper used by UI primitives.
-//   Button/Card/Input/Select/Switch - base form and action primitives.
+//   Button/Card/Input/Select/Switch - heritage-themed form and action primitives.
 //   Tabs/Dialog/Progress/Table - state and data display primitives.
 //   Toast/Tooltip/Badge/ScrollArea/Separator/Label - supporting UI primitives.
 // END_MODULE_MAP
@@ -37,10 +37,10 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 const buttonVariants: Record<NonNullable<ButtonProps['variant']>, string> = {
-  default: 'bg-zinc-950 text-zinc-50 hover:bg-zinc-800 dark:bg-zinc-50 dark:text-zinc-950',
-  secondary: 'bg-zinc-100 text-zinc-950 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-50',
-  ghost: 'bg-transparent text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-800',
-  destructive: 'bg-red-600 text-white hover:bg-red-700'
+  default: 'border border-transparent bg-[#B8422E] text-white hover:bg-[#9E3827] dark:bg-[#B8422E] dark:hover:bg-[#9E3827]',
+  secondary: 'border border-[rgba(108,114,120,0.35)] bg-transparent text-[#1A1C1E] hover:border-[#1A1C1E] dark:border-zinc-700 dark:text-zinc-50 dark:hover:border-zinc-300',
+  ghost: 'border border-transparent bg-transparent text-[#1A1C1E] hover:text-[#B8422E] dark:text-zinc-50 dark:hover:text-[#D95B45]',
+  destructive: 'border border-transparent bg-[#B8422E] text-white hover:bg-[#9E3827]'
 }
 
 const buttonSizes: Record<NonNullable<ButtonProps['size']>, string> = {
@@ -65,7 +65,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       ref={ref}
       type={type}
       className={cn(
-        'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center rounded-[4px] font-medium tracking-[0.08em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8422E]/40 disabled:pointer-events-none disabled:opacity-50',
         buttonVariants[variant],
         buttonSizes[size],
         className
@@ -89,7 +89,7 @@ export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
   return (
     <div
       ref={ref}
-      className={cn('rounded-xl border border-zinc-200 bg-white text-zinc-950 shadow-sm dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50', className)}
+        className={cn('rounded-lg border border-[rgba(108,114,120,0.2)] bg-white text-[#1A1C1E] shadow-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50', className)}
       {...props}
     />
   )
@@ -103,7 +103,7 @@ export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
 
 export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   function CardTitle({ className, ...props }, ref) {
-    return <h3 ref={ref} className={cn('text-lg font-semibold leading-none tracking-tight', className)} {...props} />
+    return <h3 ref={ref} className={cn('text-xl font-medium leading-tight tracking-[-0.02em] text-[#1A1C1E] dark:text-zinc-50', className)} {...props} />
   }
 )
 
@@ -127,7 +127,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
         ref={ref}
         type={type}
         className={cn(
-          'flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50',
+          'flex h-11 w-full rounded-[4px] border border-[rgba(108,114,120,0.26)] bg-white px-3 py-2 text-sm text-[#1A1C1E] placeholder:text-[#6C7278] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8422E]/40 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
           className
         )}
         {...props}
@@ -145,7 +145,7 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
 // END_CONTRACT: Label
 export const Label = React.forwardRef<HTMLLabelElement, React.LabelHTMLAttributes<HTMLLabelElement>>(
   function Label({ className, ...props }, ref) {
-    return <label ref={ref} className={cn('text-sm font-medium leading-none text-zinc-950 dark:text-zinc-50', className)} {...props} />
+    return <label ref={ref} className={cn('text-xs font-medium uppercase leading-none tracking-[0.08em] text-[#6C7278] dark:text-zinc-400', className)} {...props} />
   }
 )
 
@@ -161,7 +161,7 @@ export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttrib
     return (
       <select
         ref={ref}
-        className={cn('h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50', className)}
+          className={cn('h-8 rounded-[4px] border border-[rgba(108,114,120,0.26)] bg-white px-2 py-1 text-xs text-[#1A1C1E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8422E]/40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50', className)}
         {...props}
       />
     )
@@ -189,10 +189,10 @@ export const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(function 
       type={type}
       role="switch"
       aria-checked={checked}
-      className={cn('inline-flex h-6 w-11 items-center rounded-full border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500', checked ? 'bg-zinc-950 dark:bg-zinc-50' : 'bg-zinc-200 dark:bg-zinc-800', className)}
+        className={cn('inline-flex h-6 w-11 items-center rounded-full border border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8422E]/40', checked ? 'bg-[#B8422E] dark:bg-[#D95B45]' : 'bg-[#6C7278]/35 dark:bg-zinc-700', className)}
       {...props}
     >
-      <span className={cn('h-5 w-5 rounded-full bg-white shadow transition-transform dark:bg-zinc-950', checked ? 'translate-x-5' : 'translate-x-0')} />
+       <span className={cn('h-5 w-5 rounded-full bg-white shadow transition-transform dark:bg-zinc-950', checked ? 'translate-x-5' : 'translate-x-0')} />
     </button>
   )
 })
@@ -264,8 +264,8 @@ export const Dialog = React.forwardRef<HTMLDivElement, DialogProps>(function Dia
   }
 
   return (
-    <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className={cn('fixed inset-0 z-50 grid place-items-center bg-black/40 p-4', className)} {...props}>
-      <div className="w-full max-w-lg rounded-lg border border-zinc-200 bg-white p-6 shadow-lg dark:border-zinc-800 dark:bg-zinc-950">
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className={cn('fixed inset-0 z-50 grid place-items-center bg-black/40 p-4', className)} {...props}>
+      <div className="w-full max-w-lg rounded-sm border border-[rgba(108,114,120,0.2)] bg-white p-6 shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
         {title ? <h2 className="mb-4 text-lg font-semibold text-zinc-950 dark:text-zinc-50">{title}</h2> : null}
         {children}
       </div>
@@ -294,8 +294,8 @@ export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(function
   const width = `${(clamped / safeMax) * 100}%`
 
   return (
-    <div ref={ref} role="progressbar" aria-valuemin={0} aria-valuemax={safeMax} aria-valuenow={clamped} className={cn('h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800', className)} {...props}>
-      <div className="h-full bg-zinc-950 transition-all dark:bg-zinc-50" style={{ width }} />
+    <div ref={ref} role="progressbar" aria-valuemin={0} aria-valuemax={safeMax} aria-valuenow={clamped} className={cn('h-1.5 w-full overflow-hidden rounded-full bg-[#EEECE9] dark:bg-zinc-800', className)} {...props}>
+      <div className="h-full bg-[#B8422E] transition-all dark:bg-[#D95B45]" style={{ width }} />
     </div>
   )
 })
@@ -391,10 +391,10 @@ export type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
 }
 
 const badgeVariants: Record<NonNullable<BadgeProps['variant']>, string> = {
-  default: 'bg-zinc-950 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-950',
-  outline: 'border border-zinc-200 text-zinc-950 dark:border-zinc-800 dark:text-zinc-50',
-  success: 'bg-emerald-600 text-white',
-  warning: 'bg-amber-500 text-zinc-950'
+  default: 'bg-[#1A1C1E] text-white dark:bg-zinc-50 dark:text-zinc-950',
+  outline: 'border border-[rgba(108,114,120,0.25)] bg-white/60 text-[#1A1C1E] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50',
+  success: 'bg-emerald-700 text-white dark:bg-emerald-600',
+  warning: 'bg-amber-500 text-[#1A1C1E]'
 }
 
 // START_CONTRACT: Badge
@@ -408,7 +408,7 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(function Badg
   { className, variant = 'default', ...props },
   ref
 ) {
-  return <span ref={ref} className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold', badgeVariants[variant], className)} {...props} />
+  return <span ref={ref} className={cn('inline-flex items-center rounded-[2px] px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.08em]', badgeVariants[variant], className)} {...props} />
 })
 
 // START_CONTRACT: ScrollArea
@@ -444,8 +444,14 @@ export const Separator = React.forwardRef<HTMLDivElement, SeparatorProps>(functi
       ref={ref}
       role="separator"
       aria-orientation={orientation}
-      className={cn(orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px', 'bg-zinc-200 dark:bg-zinc-800', className)}
+      className={cn(orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px', 'bg-[rgba(108,114,120,0.2)] dark:bg-zinc-800', className)}
       {...props}
     />
   )
 })
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.3.0 - Made native Select thinner and smaller for compact Heritage settings controls.
+//   LAST_CHANGE: v1.2.0 - Tuned primitives to Heritage tokens: flat cards, 8px radius, outline secondary controls, and single-accent actions.
+//   LAST_CHANGE: v1.1.0 - Applied the Figma heritage palette, sharper cards, brick accent controls, and themed progress primitives.
+// END_CHANGE_SUMMARY

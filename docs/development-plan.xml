@@ -328,7 +328,7 @@
 
     <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" LAYER="2" ORDER="1" STATUS="implemented">
       <contract>
-        <purpose>Регистрация IPC-обработчиков (select-file/folder, get/set-config, start/stop-backend, статус) через безопасный contextBridge.</purpose>
+        <purpose>Регистрация IPC-обработчиков (select-file/folder, get/set-config, start/stop-backend, статус, window:minimize/window:close) через безопасный contextBridge.</purpose>
         <inputs><param name="channel" type="string" /><param name="args" type="unknown[]" /></inputs>
         <outputs><param name="result" type="unknown" /></outputs>
       </contract>
@@ -352,7 +352,7 @@
 
     <M-MAIN NAME="ElectronMain" TYPE="ENTRY_POINT" LAYER="3" ORDER="1" STATUS="implemented">
       <contract>
-        <purpose>Точка входа Electron: frameless BrowserWindow, инициализация PyManager/Watcher/Scheduler/IPC, жизненный цикл.</purpose>
+        <purpose>Точка входа Electron: resizable 1280x960 frameless BrowserWindow, инициализация PyManager/Watcher/Scheduler/IPC, жизненный цикл.</purpose>
         <inputs><param name="appEvents" type="Electron.App" /></inputs>
         <outputs><param name="window" type="BrowserWindow" /></outputs>
       </contract>
@@ -367,13 +367,13 @@
 
     <M-UI NAME="UiPrimitives" TYPE="UI_COMPONENT" LAYER="0" ORDER="4" STATUS="implemented">
       <contract>
-        <purpose>Набор shadcn/ui компонентов (~15): button, card, select, switch, tabs, dialog, progress, table, toast и т.д.</purpose>
+        <purpose>Набор shadcn-style компонентов и Figma-derived renderer theme stylesheet: button, card, select, switch, tabs, dialog, progress, table, toast и т.д.</purpose>
         <inputs><param name="props" type="ComponentProps" /></inputs>
         <outputs><param name="element" type="ReactNode" /></outputs>
       </contract>
       <interface><export-components PURPOSE="Базовые UI-примитивы" /></interface>
-      <depends>none</depends>
-      <target><source>src/components/ui/</source><tests>tests/frontend/ui.test.tsx</tests></target>
+      <depends>tailwindcss renderer stylesheet</depends>
+      <target><source>src/components/ui/; src/styles/index.css</source><tests>tests/frontend/ui.test.tsx</tests></target>
       <verification-ref>V-M-UI</verification-ref>
       <notes><note-1>15 из 48 врапперов Whisperer_v1; select берём (один раз).</note-1></notes>
     </M-UI>
@@ -430,7 +430,7 @@
 
     <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" LAYER="2" ORDER="2" STATUS="implemented">
       <contract>
-        <purpose>Каркас: Sidebar (3 вкладки), Header (frameless title bar), StatusBar (backend/watcher/GPU/версия), тема.</purpose>
+        <purpose>Каркас: fixed top header, tab navigation (3 вкладки), workspace, StatusBar (backend/watcher/GPU/версия), тема.</purpose>
         <inputs><param name="children" type="ReactNode" /></inputs>
         <outputs><param name="layout" type="ReactNode" /></outputs>
       </contract>

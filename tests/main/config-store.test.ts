@@ -2,7 +2,7 @@
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Test ConfigStore persistence, safeStorage HF-token round-trip, and encryption-unavailable handling.
-//   SCOPE: Deterministic mocks of electron safeStorage and electron-store for vitest.
+//   SCOPE: Deterministic mocks of electron safeStorage/app userData and local JSON persistence for vitest.
 //   DEPENDS: electron/config-store, vitest
 //   LINKS: M-CONFIG-STORE, V-M-CONFIG-STORE
 //   ROLE: TEST
@@ -19,58 +19,34 @@ const {
   mockEncryptString,
   mockDecryptString,
   mockIsEncryptionAvailable,
-  resetMock,
-  MockElectronStore
+  mockExistsSync,
+  mockMkdirSync,
+  mockReadFileSync,
+  mockWriteFileSync,
+  resetMock
 } = vi.hoisted(() => {
-  const data: Record<string, unknown> = {}
-  let schemaKeys: string[] = []
-  let defaultsSnapshot: Record<string, unknown> = {}
+  let fileData: string | null = null
 
   return {
     mockEncryptString: vi.fn(),
     mockDecryptString: vi.fn(),
     mockIsEncryptionAvailable: vi.fn(),
+    mockExistsSync: vi.fn(() => fileData !== null),
+    mockMkdirSync: vi.fn(),
+    mockReadFileSync: vi.fn(() => fileData ?? '{}'),
+    mockWriteFileSync: vi.fn((_path: string, content: string) => {
+      fileData = content
+    }),
     resetMock() {
-      Object.keys(data).forEach((k) => delete data[k])
-      Object.assign(data, defaultsSnapshot)
-    },
-    MockElectronStore: class MockElectronStore {
-      constructor(opts?: { defaults?: Record<string, unknown> }) {
-        if (opts?.defaults && schemaKeys.length === 0) {
-          Object.assign(data, opts.defaults)
-          Object.assign(defaultsSnapshot, opts.defaults)
-          schemaKeys = Object.keys(opts.defaults)
-        }
-      }
-
-      get(key: string): unknown {
-        return data[key]
-      }
-
-      set(key: string, value: unknown): void {
-        data[key] = value
-      }
-
-      delete(key: string): void {
-        delete data[key]
-      }
-
-      get store(): Record<string, unknown> {
-        const result: Record<string, unknown> = {}
-        for (const key of schemaKeys) {
-          result[key] = data[key]
-        }
-        return result
-      }
-
-      set store(val: Record<string, unknown>) {
-        Object.assign(data, val)
-      }
+      fileData = null
     }
   }
 })
 
 vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => 'H:/userData')
+  },
   safeStorage: {
     isEncryptionAvailable: mockIsEncryptionAvailable,
     encryptString: mockEncryptString,
@@ -78,8 +54,11 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('electron-store', () => ({
-  default: MockElectronStore
+vi.mock('node:fs', () => ({
+  existsSync: mockExistsSync,
+  mkdirSync: mockMkdirSync,
+  readFileSync: mockReadFileSync,
+  writeFileSync: mockWriteFileSync
 }))
 
 import {
@@ -134,6 +113,7 @@ describe('M-CONFIG-STORE', () => {
     setSecretHfToken('hf-token-value')
 
     expect(mockEncryptString).toHaveBeenCalledWith('hf-token-value')
+    expect(mockWriteFileSync).toHaveBeenCalled()
     expect(getConfig().hasHfToken).toBe(true)
     expect(getSecretHfToken()).toBe('hf-token-value')
   })
@@ -156,3 +136,7 @@ describe('M-CONFIG-STORE', () => {
     expect(() => setSecretHfToken('token')).toThrow('ENCRYPTION_UNAVAILABLE')
   })
 })
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.1.0 - Updated tests for local JSON config persistence without electron-store.
+// END_CHANGE_SUMMARY

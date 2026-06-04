@@ -17,13 +17,15 @@ import { describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetConfig,
+  mockGetSecretHfToken,
   mockRegisterIpc,
   mockStartBackend,
   mockStopBackend,
   mockWhenReady,
   mockAppOn,
   mockAppQuit,
-  mockWindowOnce
+  mockWindowOnce,
+  mockBrowserWindow
 } = vi.hoisted(() => ({
   mockGetConfig: vi.fn(() => ({
     language: 'ru',
@@ -31,22 +33,15 @@ const {
     outputFolder: 'H:/output',
     firstRun: false
   })),
+  mockGetSecretHfToken: vi.fn(() => 'hf_saved_token'),
   mockRegisterIpc: vi.fn(),
   mockStartBackend: vi.fn().mockResolvedValue({ baseUrl: 'http://127.0.0.1:18777', running: true }),
   mockStopBackend: vi.fn().mockResolvedValue(undefined),
   mockWhenReady: vi.fn().mockResolvedValue(undefined),
   mockAppOn: vi.fn(),
   mockAppQuit: vi.fn(),
-  mockWindowOnce: vi.fn()
-}))
-
-vi.mock('electron', () => ({
-  app: {
-    whenReady: mockWhenReady,
-    on: mockAppOn,
-    quit: mockAppQuit
-  },
-  BrowserWindow: vi.fn(() => ({
+  mockWindowOnce: vi.fn(),
+  mockBrowserWindow: vi.fn(() => ({
     loadURL: vi.fn(),
     loadFile: vi.fn(),
     show: vi.fn(),
@@ -56,8 +51,18 @@ vi.mock('electron', () => ({
   }))
 }))
 
+vi.mock('electron', () => ({
+  app: {
+    whenReady: mockWhenReady,
+    on: mockAppOn,
+    quit: mockAppQuit
+  },
+  BrowserWindow: mockBrowserWindow
+}))
+
 vi.mock('../../electron/config-store', () => ({
-  getConfig: mockGetConfig
+  getConfig: mockGetConfig,
+  getSecretHfToken: mockGetSecretHfToken
 }))
 
 vi.mock('../../electron/ipc-handlers', () => ({
@@ -79,9 +84,21 @@ describe('M-MAIN', () => {
   it('bootstrap creates frameless window and initialises managers on app ready', () => {
     expect(mockWhenReady).toHaveBeenCalled()
     expect(mockGetConfig).toHaveBeenCalled()
-    expect(mockStartBackend).toHaveBeenCalled()
+    expect(mockGetSecretHfToken).toHaveBeenCalled()
+    expect(mockStartBackend).toHaveBeenCalledWith(undefined, 'hf_saved_token')
     expect(mockRegisterIpc).toHaveBeenCalled()
     expect(mockAppOn).toHaveBeenCalledWith('activate', expect.any(Function))
+  })
+
+  it('creates a resizable 1280x960 frameless window', () => {
+    expect(mockBrowserWindow).toHaveBeenCalledWith(expect.objectContaining({
+      width: 1280,
+      height: 960,
+      minWidth: 1024,
+      minHeight: 760,
+      resizable: true,
+      frame: false
+    }))
   })
 
   it('registers before-quit handler for graceful backend shutdown', async () => {
@@ -97,3 +114,9 @@ describe('M-MAIN', () => {
     expect(found).toBeDefined()
   })
 })
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.3.0 - Updated window coverage for resizable 1280x960 frameless shell.
+//   LAST_CHANGE: v1.2.0 - Added fixed 1600x1200 frameless window coverage.
+//   LAST_CHANGE: v1.1.0 - Asserted that main bootstrap passes the persisted secure HF token to PyManager.
+// END_CHANGE_SUMMARY

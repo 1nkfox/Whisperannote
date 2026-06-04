@@ -10,9 +10,9 @@
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   registerIpc - create ipcMain.handle for every whitelisted channel.
+//   registerIpc - create ipcMain.handle for every whitelisted channel and reload secure tokens for backend restarts.
 // END_MODULE_MAP
-import { dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 
 import type { IpcChannel, IpcRequestMap, IpcResponseMap } from '../src/shared'
 import { IPC_CHANNELS } from '../src/shared'
@@ -30,17 +30,15 @@ import { scheduleScan, stopSchedule } from './scheduler'
 
 // START_CONTRACT: registerIpc
 //   PURPOSE: Wire ipcMain.handle for every channel in the IPC_CHANNELS whitelist.
-//   INPUTS: { hfToken?: string - HF token for backend restart after set }
+//   INPUTS: none
 //   OUTPUTS: void
 //   SIDE_EFFECTS: registers ipcMain.handle for all whitelisted channels
 //   LINKS: M-IPC, V-M-IPC
 // END_CONTRACT: registerIpc
-export function registerIpc(hfToken?: string): void {
+export function registerIpc(): void {
   // START_BLOCK_REGISTER
   for (const channel of IPC_CHANNELS) {
-    ipcMain.handle(channel, (event, request: unknown) =>
-      handleIpc(event, channel as IpcChannel, request, hfToken)
-    )
+    ipcMain.handle(channel, (event, request: unknown) => handleIpc(event, channel as IpcChannel, request))
   }
   // END_BLOCK_REGISTER
 }
@@ -48,8 +46,7 @@ export function registerIpc(hfToken?: string): void {
 async function handleIpc(
   event: Electron.IpcMainInvokeEvent,
   channel: IpcChannel,
-  request: unknown,
-  hfToken?: string
+  request: unknown
 ): Promise<unknown> {
   switch (channel) {
     // ---------- Dialog ----------
@@ -97,7 +94,7 @@ async function handleIpc(
       return getStatus()
 
     case 'backend:restart': {
-      await restart(hfToken)
+      await restart(getSecretHfToken() ?? undefined)
       return { ok: true as const }
     }
 
@@ -130,7 +127,23 @@ async function handleIpc(
       return { ok: true as const }
     }
 
+    // ---------- Window ----------
+    case 'window:minimize': {
+      BrowserWindow.fromWebContents(event.sender)?.minimize()
+      return { ok: true as const }
+    }
+
+    case 'window:close': {
+      BrowserWindow.fromWebContents(event.sender)?.close()
+      return { ok: true as const }
+    }
+
     default:
       throw new Error(`UNKNOWN_CHANNEL: ${channel}`)
   }
 }
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.2.0 - Added safe frameless window minimize/close IPC handlers scoped to the sender window.
+//   LAST_CHANGE: v1.1.0 - Backend restart now reads the current secure HF token instead of a stale bootstrap argument.
+// END_CHANGE_SUMMARY

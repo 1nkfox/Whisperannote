@@ -1,0 +1,110 @@
+/* FILE: src/styles/index.css */
+/* VERSION: 1.0.0 */
+/* START_MODULE_CONTRACT
+   PURPOSE: Provide renderer global styles, Tailwind entrypoint, and Figma-derived heritage theme variables.
+   SCOPE: Tailwind import, app-level color-scheme tokens, offline-safe font stacks, body background, and focus selection styling.
+   DEPENDS: tailwindcss, src/main.tsx
+   LINKS: M-UI, M-APP-SHELL, V-M-UI
+   ROLE: RUNTIME
+   MAP_MODE: NONE
+END_MODULE_CONTRACT */
+
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --wa-background: #F7F5F2;
+  --wa-foreground: #1A1C1E;
+  --wa-card: #FFFFFF;
+  --wa-muted: #EEECE9;
+  --wa-muted-foreground: #6C7278;
+  --wa-accent: #B8422E;
+  --wa-accent-hover: #9E3827;
+  --wa-border: rgba(108, 114, 120, 0.2);
+  --wa-heading-font: Fraunces, Georgia, 'Times New Roman', serif;
+  --wa-body-font: 'Public Sans', Inter, 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --wa-label-font: 'Space Grotesk', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--wa-background);
+  color: var(--wa-foreground);
+  font-family: var(--wa-body-font);
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--wa-heading-font);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+button,
+label {
+  font-family: var(--wa-label-font);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.wa-display {
+  font-family: var(--wa-heading-font);
+  font-size: clamp(2.8rem, 7vw, 4rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+}
+
+.wa-app-drag {
+  -webkit-app-region: drag;
+}
+
+.wa-app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+::selection {
+  background: rgba(184, 66, 46, 0.22);
+}
+
+.dark body {
+  background: #09090b;
+  color: #fafafa;
+}
+
+/* START_CHANGE_SUMMARY
+   LAST_CHANGE: v1.3.0 - Locked root overflow and hid all scrollbars while preserving programmatic/internal scrolling.
+   LAST_CHANGE: v1.2.0 - Added frameless Electron drag/no-drag utility classes for movable custom chrome.
+   LAST_CHANGE: v1.1.0 - Added class-driven Tailwind dark variant so renderer theme toggle controls dark/light styles.
+   LAST_CHANGE: v1.0.0 - Added Tailwind renderer entrypoint and offline-safe Figma heritage palette globals.
+END_CHANGE_SUMMARY */

@@ -1,4 +1,21 @@
-# Verifies M-QUEUE (V-M-QUEUE): single-worker processing, completion, cancel (running + queued).
+# FILE: backend/tests/test_queue.py
+# VERSION: 1.0.0
+# START_MODULE_CONTRACT
+#   PURPOSE: Verify M-QUEUE single-worker processing, progress completion, and cancellation behavior.
+#   SCOPE: Async QueueManager tests with fake progress manager and fake runners; no real ML work.
+#   DEPENDS: backend/queue_manager.py, backend/models.py, backend/tests/conftest.py
+#   LINKS: M-QUEUE, V-M-QUEUE
+#   ROLE: TEST
+#   MAP_MODE: LOCALS
+# END_MODULE_CONTRACT
+#
+# START_MODULE_MAP
+#   _wait_status - wait for a task status transition.
+#   _wait_event - wait for async fake progress delivery.
+#   test_queue_runs_job_to_completion - completion result and progress event contract.
+#   test_queue_cancel_running_job - running cancellation contract.
+#   test_queue_cancel_queued_job - queued cancellation contract.
+# END_MODULE_MAP
 import asyncio
 import threading
 import time
@@ -20,6 +37,15 @@ async def _wait_status(qm, task_id, status, timeout=3.0):
     raise AssertionError(f"{task_id} -> {qm.get(task_id).status if qm.get(task_id) else None}, expected {status}")
 
 
+async def _wait_event(progress, event, timeout=3.0):
+    end = time.time() + timeout
+    while time.time() < end:
+        if event in progress.events:
+            return
+        await asyncio.sleep(0.02)
+    raise AssertionError(f"event {event!r} not emitted; got {progress.events!r}")
+
+
 async def test_queue_runs_job_to_completion():
     def runner(job, ce, on_stage, on_progress):
         on_stage("transcribing")
@@ -34,10 +60,15 @@ async def test_queue_runs_job_to_completion():
         await _wait_status(qm, "a", TaskStatus.completed)
         assert qm.get("a").result is not None
         assert qm.get("a").progress_percent == 100
-        assert ("complete", "a", {"json": "/x.json"}) in prog.events
+        await _wait_event(prog, ("complete", "a", {"json": "/x.json"}))
         assert qm.processing is False
     finally:
         await qm.stop()
+
+
+# START_CHANGE_SUMMARY
+#   LAST_CHANGE: v1.1.0 - Wait for async completion progress delivery to avoid CUDA-venv timing flakes.
+# END_CHANGE_SUMMARY
 
 
 async def test_queue_cancel_running_job():

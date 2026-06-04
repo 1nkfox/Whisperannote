@@ -1,4 +1,4 @@
-<VerificationPlan VERSION="0.2.0">
+<VerificationPlan VERSION="0.3.0">
   <GlobalPolicy>
     <log-format>[Module][function][BLOCK_NAME] message</log-format>
     <deterministic-first>true</deterministic-first>
@@ -170,7 +170,7 @@
     </V-M-FORMAT>
 
     <V-M-PIPELINE MODULE="M-PIPELINE" PRIORITY="high">
-      <test-files><file>backend/tests/test_pipeline_integration.py</file></test-files>
+      <test-files><file>backend/tests/test_pipeline.py</file></test-files>
       <module-checks>
         <check-1>pytest backend/tests/test_pipeline_integration.py</check-1>
       </module-checks>
@@ -191,6 +191,7 @@
       <scenarios>
         <scenario-1 kind="success">Несколько задач выполняются строго последовательно.</scenario-1>
         <scenario-2 kind="success">Отмена задачи в очереди и в работе.</scenario-2>
+        <scenario-3 kind="success">Completion progress event is awaited because WS delivery is async relative to status update.</scenario-3>
       </scenarios>
       <required-log-markers><marker-1>[Queue][processNext][BLOCK_PROCESS_NEXT]</marker-1></required-log-markers>
       <required-trace-assertions><assertion-1>processing никогда не превышает 1.</assertion-1></required-trace-assertions>
@@ -212,6 +213,7 @@
       <scenarios>
         <scenario-1 kind="success">/api/health возвращает cuda_available и статус моделей.</scenario-1>
         <scenario-2 kind="failure">cuda_available=false -> status=error, обработка не стартует.</scenario-2>
+        <scenario-3 kind="success">Module-level health tests monkeypatch torch so host GPU availability does not change assertions.</scenario-3>
       </scenarios>
       <required-log-markers><marker-1>[Server][lifespan][BLOCK_LIFESPAN_INIT]</marker-1></required-log-markers>
     </V-M-SERVER>
@@ -233,7 +235,10 @@
       <scenarios>
         <scenario-1 kind="success">Подбор свободного порта при занятом дефолтном.</scenario-1>
         <scenario-2 kind="success">Токен и HF-токен передаются через env, не через argv.</scenario-2>
-        <scenario-3 kind="failure">Падение backend -> рестарт до 3 попыток.</scenario-3>
+        <scenario-3 kind="success">MODEL_CACHE_DIR указывает на writable user cache, а не на пустой/бандловый путь.</scenario-3>
+        <scenario-4 kind="success">Dev backend cwd is project root so uvicorn can import backend.server.</scenario-4>
+        <scenario-5 kind="success">PyManager starts uvicorn via backend.server:create_app --factory.</scenario-5>
+        <scenario-6 kind="failure">Падение backend -> рестарт до 3 попыток.</scenario-6>
       </scenarios>
       <required-log-markers><marker-1>[PyManager][start][BLOCK_SPAWN_BACKEND]</marker-1></required-log-markers>
     </V-M-PY-MANAGER>
@@ -288,6 +293,16 @@
       <required-trace-assertions><assertion-1>Сообщение не уходит в чужой task_id.</assertion-1></required-trace-assertions>
     </V-M-PROGRESS>
 
+    <V-M-LOGGING MODULE="M-LOGGING" PRIORITY="low">
+      <test-files><file>backend/tests/test_logging.py</file></test-files>
+      <module-checks><check-1>pytest backend/tests/ -k "logging" -x 2&gt;nul || echo "no logging tests yet"</check-1></module-checks>
+      <scenarios>
+        <scenario-1 kind="success">mark возвращает строку вида [Module][fn][BLOCK] message.</scenario-1>
+        <scenario-2 kind="success">get_logger создаёт логгер с namespace whisperannote.module.</scenario-2>
+      </scenarios>
+      <required-log-markers><marker-1>[Logging][mark][BLOCK_BUILD_MARKER]</marker-1></required-log-markers>
+    </V-M-LOGGING>
+
     <V-M-DIARIZE MODULE="M-DIARIZE" PRIORITY="high">
       <test-files><file>backend/tests/test_diarize.py</file></test-files>
       <module-checks><check-1>pytest backend/tests/test_diarize.py</check-1></module-checks>
@@ -307,6 +322,7 @@
         <scenario-1 kind="success">Настройки персистентны между сессиями.</scenario-1>
         <scenario-2 kind="success">HF-токен пишется в safeStorage/keychain, а не в открытый JSON.</scenario-2>
         <scenario-3 kind="failure">Недоступный safeStorage -> понятная ошибка, токен не пишется в открытом виде.</scenario-3>
+        <scenario-4 kind="success">ConfigStore не зависит от electron-store runtime import в Electron main.</scenario-4>
       </scenarios>
       <required-log-markers><marker-1>[ConfigStore][getSecretHfToken][BLOCK_READ_SECURE]</marker-1></required-log-markers>
       <required-trace-assertions><assertion-1>Открытый config.json никогда не содержит подстроку HF-токена.</assertion-1></required-trace-assertions>
@@ -325,6 +341,8 @@
       <scenarios>
         <scenario-1 kind="success">Зарегистрированные каналы (select-file/folder, get/set-config, start/stop-backend) отвечают.</scenario-1>
         <scenario-2 kind="failure">Вызов незарегистрированного канала отклоняется.</scenario-2>
+        <scenario-3 kind="success">backend:restart читает актуальный HF-токен из secure store перед рестартом.</scenario-3>
+        <scenario-4 kind="success">window:minimize/window:close управляют только sender BrowserWindow.</scenario-4>
       </scenarios>
       <required-log-markers><marker-1>[IpcHandlers][registerIpc][BLOCK_REGISTER]</marker-1></required-log-markers>
       <required-trace-assertions><assertion-1>Нет обработчиков вне белого списка.</assertion-1></required-trace-assertions>
@@ -346,14 +364,17 @@
       <scenarios>
         <scenario-1 kind="success">bootstrap создаёт frameless окно и инициализирует PyManager/Watcher/Scheduler/IPC.</scenario-1>
         <scenario-2 kind="success">Выход приложения вызывает graceful shutdown backend (SIGTERM -> SIGKILL).</scenario-2>
+        <scenario-3 kind="success">Сохранённый HF-токен из safeStorage передаётся в PyManager при старте backend.</scenario-3>
+        <scenario-4 kind="failure">Backend startup failure logs [Main][bootstrap][BLOCK_INIT_MANAGERS] instead of unhandled rejection.</scenario-4>
+        <scenario-5 kind="success">BrowserWindow default 1280x960, resizable=true, frame=false.</scenario-5>
       </scenarios>
       <required-log-markers><marker-1>[Main][bootstrap][BLOCK_INIT_MANAGERS]</marker-1></required-log-markers>
     </V-M-MAIN>
 
     <V-M-UI MODULE="M-UI" PRIORITY="low">
       <test-files><file>tests/frontend/ui.test.tsx</file></test-files>
-      <module-checks><check-1>npm test -- tests/frontend/ui.test.tsx</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">Примитивы рендерятся и проходят smoke-проверки.</scenario-1></scenarios>
+      <module-checks><check-1>npm test -- tests/frontend/ui.test.tsx</check-1><check-2>npm run typecheck</check-2></module-checks>
+      <scenarios><scenario-1 kind="success">Примитивы и renderer stylesheet рендерятся/собираются и проходят smoke-проверки.</scenario-1></scenarios>
     </V-M-UI>
 
     <V-M-I18N MODULE="M-I18N" PRIORITY="low">
@@ -386,7 +407,11 @@
     <V-M-APP-SHELL MODULE="M-APP-SHELL" PRIORITY="low">
       <test-files><file>tests/frontend/app-shell.test.tsx</file></test-files>
       <module-checks><check-1>npm test -- tests/frontend/app-shell.test.tsx</check-1></module-checks>
-      <scenarios><scenario-1 kind="success">Переключение тёмной/светлой темы без перезагрузки.</scenario-1></scenarios>
+      <scenarios>
+        <scenario-1 kind="success">Переключение тёмной/светлой темы без перезагрузки в fixed top-header shell.</scenario-1>
+        <scenario-2 kind="success">Renderer root получает backend:get-info и использует реальный API client для manual/batch routes.</scenario-2>
+        <scenario-3 kind="success">Runtime shell не показывает first-run onboarding и сразу открывает основные вкладки.</scenario-3>
+      </scenarios>
     </V-M-APP-SHELL>
 
     <V-M-UPLOAD MODULE="M-UPLOAD" PRIORITY="medium">

@@ -1,4 +1,19 @@
-# Verifies M-SERVER (V-M-SERVER): auth gate, routes, queue wiring, WS auth (fake runner; no GPU).
+# FILE: backend/tests/test_server.py
+# VERSION: 1.0.0
+# START_MODULE_CONTRACT
+#   PURPOSE: Verify M-SERVER auth gate, health/models routes, queue wiring, upload endpoint, and WS auth.
+#   SCOPE: FastAPI TestClient checks with a fake runner and deterministic health monkeypatching; no real model inference.
+#   DEPENDS: backend/server.py, backend/models.py, pytest, fastapi.testclient
+#   LINKS: M-SERVER, V-M-SERVER
+#   ROLE: TEST
+#   MAP_MODE: LOCALS
+# END_MODULE_CONTRACT
+#
+# START_MODULE_MAP
+#   _fake_runner - fake transcription runner for queue/upload route tests.
+#   _client - TestClient factory with injected config and fake runner.
+#   test_health_and_models - deterministic health/models route check independent of host CUDA.
+# END_MODULE_MAP
 import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -24,13 +39,29 @@ def test_requires_auth(test_config):
         assert c.get("/api/models", headers={"Authorization": "Bearer wrong"}).status_code == 401
 
 
-def test_health_and_models(test_config):
+def test_health_and_models(test_config, monkeypatch):
+    # START_BLOCK_DETERMINISTIC_HEALTH
+    class FakeCuda:
+        @staticmethod
+        def is_available():
+            return False
+
+        @staticmethod
+        def device_count():
+            return 0
+
+    class FakeTorch:
+        cuda = FakeCuda()
+
+    monkeypatch.setitem(__import__("sys").modules, "torch", FakeTorch())
+
     with _client(test_config) as c:
         h = c.get("/api/health", headers=AUTH)
         assert h.status_code == 200
-        assert h.json()["cuda_available"] is False  # no torch in test env
+        assert h.json()["cuda_available"] is False
         m = c.get("/api/models", headers=AUTH).json()
         assert DEFAULT_MODEL in m["available"]
+    # END_BLOCK_DETERMINISTIC_HEALTH
 
 
 def test_queue_enqueue_and_status(test_config):
@@ -71,3 +102,8 @@ def test_ws_accepts_good_token(test_config):
     with _client(test_config) as c:
         with c.websocket_connect("/ws/progress/t1?token=test-secret") as ws:
             assert ws is not None
+
+
+# START_CHANGE_SUMMARY
+#   LAST_CHANGE: v1.1.0 - Made health route tests deterministic when backend tests run inside a CUDA-enabled venv.
+# END_CHANGE_SUMMARY

@@ -2,7 +2,7 @@
 // VERSION: 1.0.0
 // START_MODULE_CONTRACT
 //   PURPOSE: Electron entry point: browser window, manager initialization, IPC wiring, lifecycle, shutdown.
-//   SCOPE: App bootstrap, frameless window creation, ConfigStore/PyManager/IPC orchestration.
+//   SCOPE: App bootstrap, frameless window creation, secure-token loading, ConfigStore/PyManager/IPC orchestration.
 //   DEPENDS: M-IPC, M-PY-MANAGER, M-CONFIG-STORE, M-PRELOAD, M-SHARED, electron
 //   LINKS: M-MAIN, V-M-MAIN
 //   ROLE: ENTRY_POINT
@@ -10,19 +10,19 @@
 // END_MODULE_CONTRACT
 //
 // START_MODULE_MAP
-//   bootstrap - initialize app, create window, start backend, register IPC.
+//   bootstrap - initialize app, load persisted HF token, create window, start backend, register IPC.
 // END_MODULE_MAP
 import { app, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 
-import { getConfig } from './config-store'
+import { getConfig, getSecretHfToken } from './config-store'
 import { registerIpc } from './ipc-handlers'
 import { start as startBackend, stop as stopBackend } from './python-manager'
 
 let mainWindow: BrowserWindow | null = null
 
 // START_CONTRACT: createMainWindow
-//   PURPOSE: Create a frameless application window with isolation and security preload.
+//   PURPOSE: Create a resizable frameless application window with isolation and security preload.
 //   INPUTS: none
 //   OUTPUTS: BrowserWindow
 //   SIDE_EFFECTS: creates native window, loads dev or built renderer
@@ -30,14 +30,15 @@ let mainWindow: BrowserWindow | null = null
 // END_CONTRACT: createMainWindow
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 960,
-    minHeight: 640,
+    width: 1280,
+    height: 960,
+    minWidth: 1024,
+    minHeight: 760,
+    resizable: true,
     frame: false,
     show: false,
     webPreferences: {
-      preload: join(__dirname, '../preload/preload.js'),
+      preload: join(__dirname, '../preload/preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -70,10 +71,10 @@ export async function bootstrap(): Promise<void> {
 
   // START_BLOCK_INIT_MANAGERS
   const config = getConfig()
-  const hfToken = undefined // Will be read from secure store in Phase-5
+  const hfToken = getSecretHfToken() ?? undefined
 
-  const backendInfo = await startBackend(config.preferredPort ?? undefined, hfToken)
-  registerIpc(hfToken)
+  await startBackend(config.preferredPort ?? undefined, hfToken)
+  registerIpc()
 
   createMainWindow()
   // END_BLOCK_INIT_MANAGERS
@@ -95,4 +96,15 @@ app.on('before-quit', async () => {
   await stopBackend()
 })
 
-void bootstrap()
+void bootstrap().catch((error: unknown) => {
+  console.error('[Main][bootstrap][BLOCK_INIT_MANAGERS] failed', error)
+  app.quit()
+})
+
+// START_CHANGE_SUMMARY
+//   LAST_CHANGE: v1.5.0 - Changed default frameless window to resizable 1280x960 with practical minimum size.
+//   LAST_CHANGE: v1.4.0 - Fixed the frameless app window at 1600x1200 for a monolithic renderer layout.
+//   LAST_CHANGE: v1.3.0 - Report bootstrap failures instead of leaving unhandled promise rejections.
+//   LAST_CHANGE: v1.2.0 - Updated preload path to the CommonJS build artifact used by Electron runtime.
+//   LAST_CHANGE: v1.1.0 - Backend startup now reuses the persisted secure HF token for pyannote/model access.
+// END_CHANGE_SUMMARY

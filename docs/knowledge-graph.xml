@@ -1,9 +1,17 @@
 <KnowledgeGraph>
-  <Project NAME="WhisperAnnote" VERSION="2.0.0">
+  <Project NAME="WhisperAnnote" VERSION="2.1.0">
     <keywords>whisperannote, транскрибация, диаризация, faster-whisper, pyannote, electron, react, fastapi, gpu, cuda</keywords>
     <annotation>Карта модулей трёхпроцессного приложения (Electron Main + Renderer + Python FastAPI). Источник истины по границам модулей и публичным интерфейсам. GPU-only, без ручного чанкинга, max-overlap alignment, безопасный локальный backend.</annotation>
 
     <!-- ===================== BACKEND (Python) ===================== -->
+
+    <M-LOGGING NAME="LoggingSetup" TYPE="UTILITY" STATUS="implemented">
+      <purpose>Structured logging helper producing [Module][function][BLOCK] markers used by all backend modules</purpose>
+      <path>backend/logging_setup.py</path>
+      <depends>none</depends>
+      <verification-ref>V-M-LOGGING</verification-ref>
+      <annotations><fn-get_logger PURPOSE="Namespaced logger factory" /><fn-mark PURPOSE="Build [Module][fn][BLOCK] marker string" /></annotations>
+    </M-LOGGING>
 
     <M-BACKEND-CONFIG NAME="BackendConfig" TYPE="UTILITY" STATUS="implemented">
       <purpose>Конфигурация backend из env (порт, host, секрет-токен, HF-токен, MODEL_CACHE_DIR)</purpose>
@@ -174,11 +182,11 @@
     </M-SCHEDULER>
 
     <M-IPC NAME="IpcHandlers" TYPE="INTEGRATION" STATUS="implemented">
-      <purpose>Белый список IPC-каналов (файлы, конфиг, backend, статус)</purpose>
+      <purpose>Белый список IPC-каналов (файлы, конфиг, backend, статус, window controls)</purpose>
       <path>electron/ipc-handlers.ts</path>
       <depends>M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SCHEDULER</depends>
       <verification-ref>V-M-IPC</verification-ref>
-      <annotations><fn-registerIpc PURPOSE="Регистрация каналов" /></annotations>
+      <annotations><fn-registerIpc PURPOSE="Регистрация каналов" /><channel-window-controls PURPOSE="window:minimize/window:close для frameless shell" /></annotations>
     </M-IPC>
 
     <M-PRELOAD NAME="Preload" TYPE="INTEGRATION" STATUS="implemented">
@@ -190,7 +198,7 @@
     </M-PRELOAD>
 
     <M-MAIN NAME="ElectronMain" TYPE="ENTRY_POINT" STATUS="implemented">
-      <purpose>Точка входа: окно, инициализация менеджеров, жизненный цикл</purpose>
+      <purpose>Точка входа: resizable 1280x960 frameless окно, инициализация менеджеров, жизненный цикл</purpose>
       <path>electron/main.ts</path>
       <depends>M-IPC, M-PY-MANAGER, M-WATCHER, M-SCHEDULER, M-PRELOAD</depends>
       <verification-ref>V-M-MAIN</verification-ref>
@@ -200,9 +208,9 @@
     <!-- ===================== RENDERER (React) ===================== -->
 
     <M-UI NAME="UiPrimitives" TYPE="UI_COMPONENT" STATUS="implemented">
-      <purpose>shadcn/ui примитивы (~15)</purpose>
-      <path>src/components/ui/</path>
-      <depends>none</depends>
+      <purpose>shadcn-style примитивы и Figma-derived renderer theme stylesheet</purpose>
+      <path>src/components/ui/; src/styles/index.css</path>
+      <depends>tailwindcss renderer stylesheet</depends>
       <verification-ref>V-M-UI</verification-ref>
       <annotations><export-components PURPOSE="button, card, select, dialog, progress, table, toast..." /></annotations>
     </M-UI>
@@ -237,11 +245,11 @@
     </M-API-CLIENT>
 
     <M-APP-SHELL NAME="AppShell" TYPE="UI_COMPONENT" STATUS="implemented">
-      <purpose>Каркас: Sidebar, Header, StatusBar, тема</purpose>
-      <path>src/components/layout/</path>
+      <purpose>Каркас: fixed top header, tab nav, workspace, StatusBar, тема; renderer entry point App.tsx</purpose>
+      <path>src/components/layout/; src/App.tsx</path>
       <depends>M-UI, M-I18N, M-STORES</depends>
       <verification-ref>V-M-APP-SHELL</verification-ref>
-      <annotations><export-AppShell PURPOSE="Layout" /></annotations>
+      <annotations><export-AppShell PURPOSE="Layout" /><export-App PURPOSE="Renderer root entry point composing shell + views" /></annotations>
     </M-APP-SHELL>
 
     <M-UPLOAD NAME="UploadView" TYPE="UI_COMPONENT" STATUS="implemented">
@@ -296,6 +304,18 @@
 
     <!-- Backend -->
     <CrossLink from="M-AUTH" to="M-BACKEND-CONFIG" relation="uses" />
+    <CrossLink from="M-BACKEND-CONFIG" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-AUTH" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-FFMPEG" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-PROGRESS" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-MODELS" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-DIARIZE" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-TRANSCRIBE" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-ALIGN" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-FORMAT" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-PIPELINE" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-QUEUE" to="M-LOGGING" relation="uses-logging" />
+    <CrossLink from="M-SERVER" to="M-LOGGING" relation="uses-logging" />
     <CrossLink from="M-FFMPEG" to="M-BACKEND-CONFIG" relation="uses" />
     <CrossLink from="M-PROGRESS" to="M-AUTH" relation="protected-by" />
     <CrossLink from="M-MODELS" to="M-PROGRESS" relation="streams-progress" />
