@@ -40,11 +40,13 @@ def check_ffmpeg() -> str:
 
 
 # START_CONTRACT: validate_path
-#   PURPOSE: Ensure an absolute file path resolves inside one of the allowed roots.
-#   INPUTS: { path: str, allowed_roots: list[str] }
+#   PURPOSE: Ensure an absolute path resolves inside one of the allowed roots (anti-traversal). Guards both
+#            input file paths AND output directories: any path written to by the pipeline (out_dir included)
+#            MUST pass through here before use, so a crafted output_dir cannot escape the allowed roots.
+#   INPUTS: { path: str - file or directory path, allowed_roots: list[str] }
 #   OUTPUTS: { str - the realpath } or raises AppError(PATH_NOT_ALLOWED)
 #   SIDE_EFFECTS: none
-#   LINKS: M-FFMPEG, M-AUTH
+#   LINKS: M-FFMPEG, M-AUTH, M-PIPELINE
 # END_CONTRACT: validate_path
 def validate_path(path: str, allowed_roots: list[str]) -> str:
     # START_BLOCK_VALIDATE_PATH

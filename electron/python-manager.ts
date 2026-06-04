@@ -4,6 +4,13 @@
 //   PURPOSE: Manage the Python FastAPI backend lifecycle: free-port selection, token generation,
 //            model cache env, spawn uvicorn via child_process, health polling, graceful shutdown, restart.
 //   SCOPE: Backend process orchestration and writable backend environment setup for the Electron main process.
+//   INVARIANTS:
+//     - ALLOWED_ROOTS/CORS/token are captured into the child env at spawn time only; callers that change
+//       outputFolder/watchFolder must restart() to refresh them (see M-IPC handleConfigSet).
+//     - currentInfo must reflect real liveness: it is cleared on any unexpected child exit, so getStatus/getInfo
+//       never report a dead backend as running/healthy.
+//     - A failed health poll must terminate the spawned child before throwing, so no orphan uvicorn leaks
+//       across restart() retries.
 //   DEPENDS: M-CONFIG-STORE, M-SHARED, node:child_process, node:crypto, node:net
 //   LINKS: M-PY-MANAGER, V-M-PY-MANAGER
 //   ROLE: INTEGRATION
@@ -115,7 +122,9 @@ function resolveBackendCwd(): string {
 //   PURPOSE: Launch the Python backend and wait for a healthy health-check response.
 //   INPUTS: { preferredPort?: number, hfToken?: string }
 //   OUTPUTS: Promise<BackendInfo> - resolved when backend health-check passes
-//   SIDE_EFFECTS: spawns child process, updates module-level process reference and info
+//   SIDE_EFFECTS: spawns child process, updates module-level process reference and info.
+//                 On health-poll timeout, kills the spawned child and clears processInstance before throwing
+//                 BACKEND_START_FAILED (no orphan process across restart retries).
 //   LINKS: M-PY-MANAGER, V-M-PY-MANAGER
 // END_CONTRACT: start
 export async function start(preferredPort?: number, hfToken?: string): Promise<BackendInfo> {
@@ -281,7 +290,7 @@ export async function restart(hfToken?: string): Promise<BackendInfo> {
 // START_CONTRACT: getStatus
 //   PURPOSE: Return the current backend status without side effects.
 //   INPUTS: none
-//   OUTPUTS: BackendStatus
+//   OUTPUTS: BackendStatus - running/healthy are false once the child has exited (currentInfo cleared on exit)
 //   SIDE_EFFECTS: none
 //   LINKS: M-PY-MANAGER, V-M-PY-MANAGER
 // END_CONTRACT: getStatus
@@ -304,6 +313,8 @@ export function getInfo(): BackendInfo | null {
 }
 
 // START_CHANGE_SUMMARY
+//   CONTRACT_PENDING: v1.5.0 - (coder) clear currentInfo on unexpected child exit and kill the spawned child on
+//                     failed health poll; getStatus/getInfo must not report a dead backend as running. See MODULE INVARIANTS.
 //   LAST_CHANGE: v1.4.0 - Spawn uvicorn with backend.server:create_app --factory to match the backend entry contract.
 //   LAST_CHANGE: v1.3.0 - Use project root as backend cwd in dev so uvicorn can import backend.server.
 //   LAST_CHANGE: v1.2.0 - Forward backend stdout/stderr to dev logs so startup health failures are diagnosable.

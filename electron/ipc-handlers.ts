@@ -3,6 +3,9 @@
 // START_MODULE_CONTRACT
 //   PURPOSE: Register whitelisted IPC handlers for config, dialog, backend, and watcher channels.
 //   SCOPE: ipcMain.handle for each IPC_CHANNELS entry; watcher lifecycle bridges new-file events to renderer.
+//   INVARIANT: M-PY-MANAGER captures ALLOWED_ROOTS only at spawn (outputFolder/watchFolder). When config:set
+//              changes either of those allowed-root inputs, the backend MUST be restarted so path validation
+//              (M-FFMPEG.validate_path) sees the new roots; otherwise batch enqueue fails with PATH_NOT_ALLOWED.
 //   DEPENDS: M-PY-MANAGER, M-CONFIG-STORE, M-WATCHER, M-SCHEDULER, M-SHARED, electron (dialog, ipcMain, shell)
 //   LINKS: M-IPC, V-M-IPC
 //   ROLE: INTEGRATION
@@ -65,6 +68,14 @@ async function handleIpc(
     case 'config:get':
       return getConfig()
 
+    // START_CONTRACT: handleConfigSet
+    //   PURPOSE: Persist a config patch and keep the backend's ALLOWED_ROOTS in sync with the active roots.
+    //   INPUTS: { patch: Partial<AppConfig> - may include outputFolder/watchFolder }
+    //   OUTPUTS: { AppConfig - persisted config }
+    //   SIDE_EFFECTS: writes config; restarts backend (with current secure HF token) iff outputFolder or
+    //                 watchFolder changed, because those define ALLOWED_ROOTS captured at backend spawn.
+    //   LINKS: M-CONFIG-STORE, M-PY-MANAGER, M-IPC
+    // END_CONTRACT: handleConfigSet
     case 'config:set': {
       return setConfig(request as Partial<IpcRequestMap['config:set']>)
     }
@@ -144,6 +155,8 @@ async function handleIpc(
 }
 
 // START_CHANGE_SUMMARY
+//   CONTRACT_PENDING: v1.3.0 - config:set must restart backend when outputFolder/watchFolder change so
+//                     ALLOWED_ROOTS stays current; see handleConfigSet contract (coder to implement).
 //   LAST_CHANGE: v1.2.0 - Added safe frameless window minimize/close IPC handlers scoped to the sender window.
 //   LAST_CHANGE: v1.1.0 - Backend restart now reads the current secure HF token instead of a stale bootstrap argument.
 // END_CHANGE_SUMMARY

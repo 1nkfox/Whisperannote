@@ -324,6 +324,8 @@
     <CrossLink from="M-ALIGN" to="M-SCHEMAS" relation="uses-types" />
     <CrossLink from="M-FORMAT" to="M-SCHEMAS" relation="uses-types" />
     <CrossLink from="M-PIPELINE" to="M-FFMPEG" relation="step-convert" />
+    <CrossLink from="M-PIPELINE" to="M-FFMPEG" relation="validates-out-dir" />
+    <CrossLink from="M-MODELS" to="M-PROGRESS" relation="download-progress-nonblocking" />
     <CrossLink from="M-PIPELINE" to="M-DIARIZE" relation="step-diarize" />
     <CrossLink from="M-PIPELINE" to="M-TRANSCRIBE" relation="step-transcribe" />
     <CrossLink from="M-PIPELINE" to="M-ALIGN" relation="step-align" />
@@ -340,6 +342,7 @@
     <CrossLink from="M-IPC" to="M-WATCHER" relation="controls" />
     <CrossLink from="M-IPC" to="M-SCHEDULER" relation="controls" />
     <CrossLink from="M-IPC" to="M-PY-MANAGER" relation="controls" />
+    <CrossLink from="M-IPC" to="M-PY-MANAGER" relation="restarts-on-allowed-roots-change" />
     <CrossLink from="M-IPC" to="M-CONFIG-STORE" relation="reads-writes" />
     <CrossLink from="M-MAIN" to="M-IPC" relation="registers" />
     <CrossLink from="M-MAIN" to="M-PY-MANAGER" relation="owns" />

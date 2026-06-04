@@ -52,7 +52,9 @@ def _emit(stage_cb: StageCb, progress_cb: ProgressCb, stage: str, pct: int, msg:
 #             temp_base?, cancel_event?, on_stage?, on_progress? }
 #   OUTPUTS: { TranscriptionResult }
 #   SIDE_EFFECTS: ffmpeg + GPU inference + writes output files; cleans temp workdir
-#   LINKS: M-PIPELINE
+#   SECURITY: both src (job.file_path) AND out_dir are validated against allowed_roots before any read/write,
+#             so a crafted output_dir cannot write transcripts outside the allowed folders (PATH_NOT_ALLOWED).
+#   LINKS: M-PIPELINE, M-FFMPEG
 # END_CONTRACT: run
 def run(
     job,
@@ -67,6 +69,7 @@ def run(
     on_progress: ProgressCb = None,
 ) -> TranscriptionResult:
     src = validate_path(job.file_path, allowed_roots)
+    # CONTRACT(SECURITY): out_dir must also be validated against allowed_roots before write_outputs() — coder to add.
     work = new_workdir(temp_base)
     # START_BLOCK_RUN_PIPELINE
     try:

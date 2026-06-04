@@ -180,13 +180,24 @@ def create_app(
     async def models(request: Request) -> AvailableModels:
         return list_models(request.app.state.config.model_cache_dir)
 
+    # START_CONTRACT: models_download
+    #   PURPOSE: Download a model snapshot without blocking the event loop.
+    #   INPUTS: { body: DownloadRequest - model name }
+    #   OUTPUTS: { dict - {status, model} } or HTTPException(502) on AppError
+    #   SIDE_EFFECTS: runs the blocking download_model in a thread executor; the progress callback marshals
+    #                 ProgressManager.progress onto the loop via run_coroutine_threadsafe so health/WS/queue
+    #                 stay responsive while a multi-GB snapshot downloads.
+    #   LINKS: M-SERVER, M-MODELS, M-PROGRESS
+    # END_CONTRACT: models_download
     @api.post("/models/download")
     async def models_download(request: Request, body: DownloadRequest) -> dict:
         cfg: BackendConfig = request.app.state.config
         progress_mgr: ProgressManager = request.app.state.progress
 
         def cb(stage: str, pct: int) -> None:
-            # progress is observable via the WS channel keyed by the model name
+            # progress is observable via the WS channel keyed by the model name.
+            # CONTRACT(NON-BLOCKING): cb runs inside the executor thread; marshal onto the loop with
+            # run_coroutine_threadsafe(progress_mgr.progress(...), loop) — coder to wire the captured loop.
             import asyncio
 
             try:
@@ -196,6 +207,8 @@ def create_app(
                 pass
 
         try:
+            # CONTRACT(NON-BLOCKING): run the blocking download in a thread executor so the event loop
+            # (health/WS/queue) stays responsive — coder to wrap with await loop.run_in_executor(...).
             download_model(body.model, cfg.model_cache_dir, cb)
         except AppError as e:
             raise HTTPException(status_code=502, detail=f"{e.code.value}: {e.message}")

@@ -632,6 +632,14 @@
       <step-2 module="M-PACKAGING" status="done" verification="V-M-PACKAGING">electron-builder: инсталлятор с .venv sidecar; прогон на чистой машине</step-2>
       <note>Локальная проверка выполнена через внешний staging/output на G: из-за нехватки места на H:. Полный NSIS и VF-CLEAN-INSTALL остаются ручным gate evidence.</note>
     </Phase-8>
+    <Phase-9 name="Hardening (audit-fix)" status="planned">
+      <goal>Реализовать поведение, зафиксированное в обновлённых контрактах после аудита кода. Контракты — источник истины; код реализует контракт. Логику пишет агент-кодер в рамках своего write-scope.</goal>
+      <step-1 module="M-IPC" status="planned" verification="V-M-IPC" severity="high">config:set перезапускает backend при изменении outputFolder/watchFolder, чтобы ALLOWED_ROOTS оставался актуальным (иначе batch-enqueue падает с PATH_NOT_ALLOWED). См. контракт handleConfigSet.</step-1>
+      <step-2 module="M-PIPELINE" status="planned" verification="V-M-PIPELINE" severity="medium">Валидировать out_dir через validate_path(allowed_roots) до записи (анти-traversal для output_dir). См. контракт run / CONTRACT(SECURITY).</step-2>
+      <step-3 module="M-SERVER" status="planned" verification="V-M-MODELS" severity="high">POST /api/models/download: blocking-скачивание в thread executor; прогресс через run_coroutine_threadsafe, чтобы не блокировать event loop. См. контракт models_download.</step-3>
+      <step-4 module="M-PY-MANAGER" status="planned" verification="V-M-PY-MANAGER" severity="medium">Сбрасывать currentInfo при непредвиденном exit ребёнка; убивать заспавненный процесс при неуспешном health-poll (без orphan-uvicorn). См. MODULE INVARIANTS / контракты start, getStatus.</step-4>
+      <note>Линт-гейт сломан: репозиторий использует .eslintrc.cjs, а установленный ESLint v9+ требует flat-config (eslint.config.js). Мигрировать конфиг или зафиксировать версию ESLint в devDependencies, чтобы восстановить verification-гейт линта.</note>
+    </Phase-9>
   </ImplementationOrder>
 
   <ExecutionPolicy>
